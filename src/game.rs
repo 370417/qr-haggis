@@ -20,7 +20,7 @@ enum Location {
 
 struct Game {
     /// The location of a card with id x is locations[x].
-    locations: [Location; 42],
+    locations: Vec<Location>,
     current_player: Player,
     /// Empty if game just started or the previous player just passed
     last_combination: Vec<CardId>,
@@ -78,12 +78,15 @@ impl CardId {
 impl Game {
     /// Create and initialize a new game state.
     fn create_state(qr_code: Option<&[u8]>) -> Self {
-        let game = Game {
-            locations: [Location::Haggis; 42],
+        let mut game = Game {
+            locations: Vec::new(),
             current_player: Player::Me,
             last_combination: Vec::new(),
             current_start_order: 0,
         };
+        for _ in 0..42 {
+            game.locations.push(Location::Haggis);
+        }
         match qr_code {
             Some(data) => game.set_state(data),
             None => game.init_state(),
@@ -98,7 +101,7 @@ impl Game {
     fn init_state(&mut self) {
         // Even though we only loop over the first 28 indices, we still
         // need to shuffle all 36 normal cards so that the Haggis gets randomized.
-        let indices: Vec<_> = (0..36).collect();
+        let mut indices: Vec<_> = (0..36).collect();
         indices.shuffle(&mut rand::thread_rng());
 
         // Cleaner version of the for loops:
@@ -133,7 +136,7 @@ impl Game {
             return Vec::new();
         }
 
-        let current_end_location = self.locations[self.last_combination[0].0];
+        let current_end_location = & self.locations[self.last_combination[0].0];
         let current_end_order = match current_end_location {
             Location::Table { order, captured_by: None } => order,
             _ => panic!("Invalid self.last_combination"),
@@ -201,6 +204,128 @@ impl Game {
             Some((my_score, opponent_score))
         } else {
             None
+        }
+    }
+
+    fn get_opponent_num_of_card(&self) -> usize {
+        let mut opponent_num_of_card: usize = 0;
+        for location in self.locations.iter() {
+            match location {
+                Location::Hand(Player::Opponent) => opponent_num_of_card += 1, 
+                _ => {}
+            }
+        }
+        opponent_num_of_card
+    }
+
+    fn validate_combination(&self, card_ids: & Vec<CardId>) -> bool{
+        todo!();
+    }
+
+    // 0:  3-5-7-9 (these 4 ranks in 4 different suits, no wild cards) 
+    // 1:  J-Q
+    // 2:  J-K 
+    // 3:  Q-K 
+    // 4:  J-Q-K 
+    // 5:  3-5-7-9 (these 4 ranks in one suit, no wild cards)
+    // 6： not a bomb
+    fn is_bomb(&self, card_ids: &Vec<CardId>) -> usize{ 
+
+        if card_ids.len() == 4 {
+            let rank_bit_mask = 0;
+            for i in 0..4 {
+                let rank = match card_ids[i].to_value() {
+                    CardValue::Normal{rank, ..} => rank, 
+                    CardValue::Wildcard{rank} => rank,
+                };
+                rank_bit_mask |= 1 << rank; 
+            }
+            if rank_bit_mask == 0b1010101000 { //is 3-5-7-9  
+                let suit_bit_mask = 0;
+                for i in 0..4 {
+                    let suit = match card_ids[i].to_value() {
+                        CardValue::Normal{suit, ..} => suit, 
+                        _ => {panic!("Should never reach this line")}
+                    };
+                    suit_bit_mask |= 1 << suit; 
+                }
+                if suit_bit_mask == 0b1111 {
+                    return 0; 
+                } else if suit_bit_mask == 0b1 || suit_bit_mask == 0b10 || suit_bit_mask == 0b100 || suit_bit_mask == 0b1000 {
+                    return 5;
+                } else {
+                    return 6;
+                }
+            } else {
+                return 6;
+            }
+        } else {
+            let rank_bit_mask = 0; 
+            for card_id in card_ids.iter() {
+                let rank = match card_ids[i].to_value() {
+                    CardValue::Normal{rank, ..} => rank, 
+                    CardValue::Wildcard{rank} => rank,
+                };
+                rank_bit_mask |= 1 << rank; 
+            }
+            return match rank_bit_mask {
+                0b0110000000000 => 1, 
+                0b1010000000000 => 2, 
+                0b1100000000000 => 3, 
+                0b1110000000000 => 4, 
+                _ => 6
+            }
+        }
+    }
+    fn pass(& mut self) {
+        //change player
+        self.current_player = Player::Opponent;
+
+        //capture the cards on the table
+        let winner_of_the_trick = 
+        if self.is_bomb(&self.last_combination) < 6 {
+            Player::Me
+        } else {
+            Player::Opponent
+        };
+        for card_id in self.last_combination.iter() {
+            let cur_order = match self.locations[card_id.0] {
+                Location::Table {order,..} => order, 
+                _ => {panic!("Wrong Location type")},
+            };
+            self.locations[card_id.0] = Location::Table{order: cur_order, captured_by:Some(winner_of_the_trick) };
+        }
+        //update last combination
+        self.last_combination = Vec::new();
+    }
+
+    // we assume card_ids is not empty
+    pub fn play_cards(&mut self, card_ids: Vec<CardId>) -> bool { 
+        if !self.validate_combination(& card_ids) {
+            return false
+        } else {
+            //get the current order
+            let current_order  = 
+            if self.last_combination.is_empty() {
+                self.current_start_order
+            } else {
+                let current_end_location = & self.locations[self.last_combination[0].0];
+                match current_end_location {
+                    Location::Table { order, captured_by: None } => * order,
+                    _ => panic!("Invalid self.last_combination"),
+                }
+            };
+            // move the cards to table
+            for card_id in card_ids.iter() {
+                self.locations[card_id.0] = Location::Table{order: current_order, captured_by: None};
+            }
+            
+            // update the last combination
+            self.last_combination = card_ids;
+
+            // change the current player
+            self.current_player = Player::Opponent;
+            return true;
         }
     }
 }

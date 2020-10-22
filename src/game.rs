@@ -1,5 +1,4 @@
 use rand::prelude::*;
-use std::collections::BTreeSet;
 
 #[derive(Debug, Copy, Clone)]
 enum Player {
@@ -249,17 +248,9 @@ impl Game {
             return None;
         }
 
-        // For now, ignore bombs
-        // card_values.len()
-
-        // Example combination 2A 3A 4A 2B 3B 4B
-        // Example invalid combination 2A 3A 4A 2B 3C 4B
-
-        // Assume the card values are in the same order as the locations array
-
         let mut smallest_rank = 14;
-        let mut largest_rank = 1; // maybe increase to 13?
-        let mut suits = BTreeSet::new();
+        let mut largest_rank = 1;
+        let mut suits = SuitMap::new();
         let mut num_normal_cards: usize = 0;
         for value in card_values {
             if let CardValue::Normal { rank, suit } = value {
@@ -270,13 +261,16 @@ impl Game {
             }
         }
 
+        if smallest_rank > largest_rank {
+            return None;
+        }
+
         let number_of_ranks = largest_rank - smallest_rank + 1;
-        let min_combination_size = number_of_ranks * suits.len(); // aka area of rectangle
+        let min_combination_size = number_of_ranks * suits.len();
         let num_required_wildcards = min_combination_size - num_normal_cards;
         let num_wildcards = card_values.len() - num_normal_cards;
 
         if num_required_wildcards > num_wildcards {
-            // Not enough cards
             None
         } else {
             Some(CombinationType {
@@ -347,6 +341,7 @@ impl Game {
             };
         }
     }
+
     fn pass(&mut self) {
         // change player
         self.current_player = Player::Opponent;
@@ -404,5 +399,28 @@ impl Game {
             self.current_player = Player::Opponent;
             return true;
         }
+    }
+}
+
+pub struct SuitMap {
+    len: usize,
+    inserted: [bool; 4],
+}
+
+impl SuitMap {
+    fn new() -> Self {
+        SuitMap {
+            len: 0,
+            inserted: [false; 4],
+        }
+    }
+
+    fn insert(&mut self, suit: usize) {
+        self.len += !self.inserted[suit] as usize;
+        self.inserted[suit] = true;
+    }
+
+    fn len(&self) -> usize {
+        self.len
     }
 }

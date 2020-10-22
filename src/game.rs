@@ -1,4 +1,5 @@
 use rand::prelude::*;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Copy, Clone)]
 enum Player {
@@ -15,7 +16,14 @@ enum Location {
     Table {
         captured_by: Option<Player>,
         order: usize,
-    }
+    },
+}
+
+struct CombinationType {
+    start_rank: usize,
+    end_rank: usize,
+    suit_count: usize,
+    num_extra_wildcards: usize,
 }
 
 struct Game {
@@ -39,10 +47,11 @@ enum CardValue {
     Wildcard {
         /// Wildcard rank is in the range 11..=13
         rank: usize,
-    }
+    },
 }
 
 impl CardValue {
+    /// How many points this card value scores at the end of a game.
     fn point_value(&self) -> usize {
         match self {
             Self::Normal { rank, .. } => rank % 2,
@@ -136,16 +145,23 @@ impl Game {
             return Vec::new();
         }
 
-        let current_end_location = & self.locations[self.last_combination[0].0];
+        let current_end_location = &self.locations[self.last_combination[0].0];
         let current_end_order = match current_end_location {
-            Location::Table { order, captured_by: None } => order,
+            Location::Table {
+                order,
+                captured_by: None,
+            } => order,
             _ => panic!("Invalid self.last_combination"),
         };
 
         let mut combinations = vec![Vec::new(); 1 + current_end_order - self.current_start_order];
 
         for (i, location) in self.locations.iter().enumerate() {
-            if let Location::Table { captured_by: None, order } = location {
+            if let Location::Table {
+                captured_by: None,
+                order,
+            } = location
+            {
                 combinations[order - self.current_start_order].push(CardId(i));
             }
         }
@@ -180,10 +196,16 @@ impl Game {
                 match location {
                     // All point  cards (i.e., any 3, 5, 7, 9, J, Q, or K), captured during trick play,
                     // are  scored by the capturing player.
-                    Location::Table { captured_by: Some(Player::Me), .. } => {
+                    Location::Table {
+                        captured_by: Some(Player::Me),
+                        ..
+                    } => {
                         my_score += card_id.to_value().point_value();
                     }
-                    Location::Table { captured_by: Some(Player::Opponent), .. } => {
+                    Location::Table {
+                        captured_by: Some(Player::Opponent),
+                        ..
+                    } => {
                         opponent_score += card_id.to_value().point_value();
                     }
                     // Point cards left in the opponent's hand and any point cards found in the
@@ -211,47 +233,95 @@ impl Game {
         let mut opponent_num_of_card: usize = 0;
         for location in self.locations.iter() {
             match location {
-                Location::Hand(Player::Opponent) => opponent_num_of_card += 1, 
+                Location::Hand(Player::Opponent) => opponent_num_of_card += 1,
                 _ => {}
             }
         }
         opponent_num_of_card
     }
 
-    fn validate_combination(&self, card_ids: & Vec<CardId>) -> bool{
+    fn validate_combination(&self, card_ids: &Vec<CardId>) -> bool {
         todo!();
     }
 
-    // 0:  3-5-7-9 (these 4 ranks in 4 different suits, no wild cards) 
+    fn is_valid_combination(&self, card_values: &Vec<CardValue>) -> Option<CombinationType> {
+        if card_values.is_empty() {
+            return None;
+        }
+
+        // For now, ignore bombs
+        // card_values.len()
+
+        // Example combination 2A 3A 4A 2B 3B 4B
+        // Example invalid combination 2A 3A 4A 2B 3C 4B
+
+        // Assume the card values are in the same order as the locations array
+
+        let mut smallest_rank = 14;
+        let mut largest_rank = 1; // maybe increase to 13?
+        let mut suits = BTreeSet::new();
+        let mut num_normal_cards: usize = 0;
+        for value in card_values {
+            if let CardValue::Normal { rank, suit } = value {
+                num_normal_cards += 1;
+                smallest_rank = smallest_rank.min(*rank);
+                largest_rank = largest_rank.max(*rank);
+                suits.insert(*suit);
+            }
+        }
+
+        let number_of_ranks = largest_rank - smallest_rank + 1;
+        let min_combination_size = number_of_ranks * suits.len(); // aka area of rectangle
+        let num_required_wildcards = min_combination_size - num_normal_cards;
+        let num_wildcards = card_values.len() - num_normal_cards;
+
+        if num_required_wildcards > num_wildcards {
+            // Not enough cards
+            None
+        } else {
+            Some(CombinationType {
+                start_rank: smallest_rank,
+                end_rank: largest_rank,
+                suit_count: suits.len(),
+                num_extra_wildcards: num_wildcards - num_required_wildcards,
+            })
+        }
+    }
+
+    // 0:  3-5-7-9 (these 4 ranks in 4 different suits, no wild cards)
     // 1:  J-Q
-    // 2:  J-K 
-    // 3:  Q-K 
-    // 4:  J-Q-K 
+    // 2:  J-K
+    // 3:  Q-K
+    // 4:  J-Q-K
     // 5:  3-5-7-9 (these 4 ranks in one suit, no wild cards)
     // 6： not a bomb
-    fn is_bomb(&self, card_ids: &Vec<CardId>) -> usize{ 
-
+    fn is_bomb(&self, card_ids: &Vec<CardId>) -> usize {
         if card_ids.len() == 4 {
-            let rank_bit_mask = 0;
+            let mut rank_bit_mask = 0;
             for i in 0..4 {
                 let rank = match card_ids[i].to_value() {
-                    CardValue::Normal{rank, ..} => rank, 
-                    CardValue::Wildcard{rank} => rank,
+                    CardValue::Normal { rank, .. } => rank,
+                    CardValue::Wildcard { rank } => rank,
                 };
-                rank_bit_mask |= 1 << rank; 
+                rank_bit_mask |= 1 << rank;
             }
-            if rank_bit_mask == 0b1010101000 { //is 3-5-7-9  
-                let suit_bit_mask = 0;
+            if rank_bit_mask == 0b1010101000 {
+                // is 3-5-7-9
+                let mut suit_bit_mask = 0;
                 for i in 0..4 {
                     let suit = match card_ids[i].to_value() {
-                        CardValue::Normal{suit, ..} => suit, 
-                        _ => {panic!("Should never reach this line")}
+                        CardValue::Normal { suit, .. } => suit,
+                        _ => panic!("Should never reach this line"),
                     };
-                    suit_bit_mask |= 1 << suit; 
+                    suit_bit_mask |= 1 << suit;
                 }
                 if suit_bit_mask == 0b1111 {
-                    return 0; 
-                } else if suit_bit_mask == 0b1 || suit_bit_mask == 0b10 || suit_bit_mask == 0b100 || suit_bit_mask == 0b1000 {
+                    return 0;
+                } else if suit_bit_mask == 0b1
+                    || suit_bit_mask == 0b10
+                    || suit_bit_mask == 0b100
+                    || suit_bit_mask == 0b1000
+                {
                     return 5;
                 } else {
                     return 6;
@@ -260,66 +330,73 @@ impl Game {
                 return 6;
             }
         } else {
-            let rank_bit_mask = 0; 
+            let mut rank_bit_mask = 0;
             for card_id in card_ids.iter() {
-                let rank = match card_ids[i].to_value() {
-                    CardValue::Normal{rank, ..} => rank, 
-                    CardValue::Wildcard{rank} => rank,
+                let rank = match card_ids[card_id.0].to_value() {
+                    CardValue::Normal { rank, .. } => rank,
+                    CardValue::Wildcard { rank } => rank,
                 };
-                rank_bit_mask |= 1 << rank; 
+                rank_bit_mask |= 1 << rank;
             }
             return match rank_bit_mask {
-                0b0110000000000 => 1, 
-                0b1010000000000 => 2, 
-                0b1100000000000 => 3, 
-                0b1110000000000 => 4, 
-                _ => 6
-            }
+                0b0110000000000 => 1,
+                0b1010000000000 => 2,
+                0b1100000000000 => 3,
+                0b1110000000000 => 4,
+                _ => 6,
+            };
         }
     }
-    fn pass(& mut self) {
-        //change player
+    fn pass(&mut self) {
+        // change player
         self.current_player = Player::Opponent;
 
-        //capture the cards on the table
-        let winner_of_the_trick = 
-        if self.is_bomb(&self.last_combination) < 6 {
+        // capture the cards on the table
+        let winner_of_the_trick = if self.is_bomb(&self.last_combination) < 6 {
             Player::Me
         } else {
             Player::Opponent
         };
         for card_id in self.last_combination.iter() {
             let cur_order = match self.locations[card_id.0] {
-                Location::Table {order,..} => order, 
-                _ => {panic!("Wrong Location type")},
+                Location::Table { order, .. } => order,
+                _ => panic!("Wrong Location type"),
             };
-            self.locations[card_id.0] = Location::Table{order: cur_order, captured_by:Some(winner_of_the_trick) };
+            self.locations[card_id.0] = Location::Table {
+                order: cur_order,
+                captured_by: Some(winner_of_the_trick),
+            };
         }
-        //update last combination
+        // update last combination
         self.last_combination = Vec::new();
     }
 
     // we assume card_ids is not empty
-    pub fn play_cards(&mut self, card_ids: Vec<CardId>) -> bool { 
-        if !self.validate_combination(& card_ids) {
-            return false
+    pub fn play_cards(&mut self, card_ids: Vec<CardId>) -> bool {
+        if !self.validate_combination(&card_ids) {
+            return false;
         } else {
-            //get the current order
-            let current_order  = 
-            if self.last_combination.is_empty() {
+            // get the current order
+            let current_order = if self.last_combination.is_empty() {
                 self.current_start_order
             } else {
-                let current_end_location = & self.locations[self.last_combination[0].0];
+                let current_end_location = &self.locations[self.last_combination[0].0];
                 match current_end_location {
-                    Location::Table { order, captured_by: None } => * order,
+                    Location::Table {
+                        order,
+                        captured_by: None,
+                    } => *order,
                     _ => panic!("Invalid self.last_combination"),
                 }
             };
             // move the cards to table
             for card_id in card_ids.iter() {
-                self.locations[card_id.0] = Location::Table{order: current_order, captured_by: None};
+                self.locations[card_id.0] = Location::Table {
+                    order: current_order,
+                    captured_by: None,
+                };
             }
-            
+
             // update the last combination
             self.last_combination = card_ids;
 

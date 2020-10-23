@@ -18,6 +18,7 @@ enum Location {
     },
 }
 
+#[derive(Debug, Eq, PartialEq)]
 struct CombinationType {
     start_rank: usize,
     end_rank: usize,
@@ -25,15 +26,32 @@ struct CombinationType {
     num_extra_wildcards: usize,
 }
 
+impl CombinationType {
+    fn rank_count(&self) -> usize {
+        self.end_rank - self.start_rank + 1
+    }
+
+    fn card_count(&self) -> usize {
+        self.suit_count * self.rank_count() + self.num_extra_wildcards
+    }
+}
+
 struct Game {
     /// The location of a card with id x is locations[x].
     locations: Vec<Location>,
     current_player: Player,
     /// Empty if game just started or the previous player just passed
-    last_combination: Vec<CardId>,
+    last_trick: Vec<CardId>,
+    /// Type (including disambiguations) of the last trick played
+    last_trick_type: Option<TrickType>,
     /// The order of the first combination played that has not yet been captured
     /// so that we can efficiently search for the non-captured cards
     current_start_order: usize,
+}
+
+enum TrickType {
+    Bomb(usize),
+    Combination(CombinationType),
 }
 
 enum CardValue {
@@ -58,6 +76,13 @@ impl CardValue {
             Self::Wildcard { rank: 12 } => 3,
             Self::Wildcard { rank: 13 } => 5,
             _ => panic!("Invalid wildcard rank"),
+        }
+    }
+
+    fn rank(&self) -> usize {
+        match self {
+            CardValue::Normal { rank, .. } => *rank,
+            CardValue::Wildcard { rank } => *rank,
         }
     }
 }
@@ -89,7 +114,8 @@ impl Game {
         let mut game = Game {
             locations: Vec::new(),
             current_player: Player::Me,
-            last_combination: Vec::new(),
+            last_trick: Vec::new(),
+            last_trick_type: None,
             current_start_order: 0,
         };
         for _ in 0..42 {
@@ -140,17 +166,17 @@ impl Game {
 
     /// Return the non-captured cards of the table
     fn get_table(&self) -> Vec<Vec<CardId>> {
-        if self.last_combination.is_empty() {
+        if self.last_trick.is_empty() {
             return Vec::new();
         }
 
-        let current_end_location = &self.locations[self.last_combination[0].0];
+        let current_end_location = &self.locations[self.last_trick[0].0];
         let current_end_order = match current_end_location {
             Location::Table {
                 order,
                 captured_by: None,
             } => order,
-            _ => panic!("Invalid self.last_combination"),
+            _ => panic!("Invalid self.last_trick"),
         };
 
         let mut combinations = vec![Vec::new(); 1 + current_end_order - self.current_start_order];
@@ -239,57 +265,14 @@ impl Game {
         opponent_num_of_card
     }
 
-    fn validate_combination(&self, card_ids: &Vec<CardId>) -> bool {
-        todo!();
-    }
-
-    fn is_valid_combination(&self, card_values: &Vec<CardValue>) -> Option<CombinationType> {
-        if card_values.is_empty() {
-            return None;
-        }
-
-        let mut smallest_rank = 14;
-        let mut largest_rank = 1;
-        let mut suits = SuitMap::new();
-        let mut num_normal_cards: usize = 0;
-        for value in card_values {
-            if let CardValue::Normal { rank, suit } = value {
-                num_normal_cards += 1;
-                smallest_rank = smallest_rank.min(*rank);
-                largest_rank = largest_rank.max(*rank);
-                suits.insert(*suit);
-            }
-        }
-
-        if smallest_rank > largest_rank {
-            return None;
-        }
-
-        let number_of_ranks = largest_rank - smallest_rank + 1;
-        let min_combination_size = number_of_ranks * suits.len();
-        let num_required_wildcards = min_combination_size - num_normal_cards;
-        let num_wildcards = card_values.len() - num_normal_cards;
-
-        if num_required_wildcards > num_wildcards {
-            None
-        } else {
-            Some(CombinationType {
-                start_rank: smallest_rank,
-                end_rank: largest_rank,
-                suit_count: suits.len(),
-                num_extra_wildcards: num_wildcards - num_required_wildcards,
-            })
-        }
-    }
-
-    // 0:  3-5-7-9 (these 4 ranks in 4 different suits, no wild cards)
-    // 1:  J-Q
-    // 2:  J-K
-    // 3:  Q-K
-    // 4:  J-Q-K
-    // 5:  3-5-7-9 (these 4 ranks in one suit, no wild cards)
-    // 6： not a bomb
-    fn is_bomb(&self, card_ids: &Vec<CardId>) -> usize {
+    // 0:    3-5-7-9 (these 4 ranks in 4 different suits, no wild cards)
+    // 1:    J-Q
+    // 2:    J-K
+    // 3:    Q-K
+    // 4:    J-Q-K
+    // 5:    3-5-7-9 (these 4 ranks in one suit, no wild cards)
+    // None: not a bomb
+    fn is_bomb(&self, card_ids: &Vec<CardId>) -> Option<usize> {
         if card_ids.len() == 4 {
             let mut rank_bit_mask = 0;
             for i in 0..4 {
@@ -310,18 +293,18 @@ impl Game {
                     suit_bit_mask |= 1 << suit;
                 }
                 if suit_bit_mask == 0b1111 {
-                    return 0;
+                    return Some(0);
                 } else if suit_bit_mask == 0b1
                     || suit_bit_mask == 0b10
                     || suit_bit_mask == 0b100
                     || suit_bit_mask == 0b1000
                 {
-                    return 5;
+                    return Some(5);
                 } else {
-                    return 6;
+                    return None;
                 }
             } else {
-                return 6;
+                return None;
             }
         } else {
             let mut rank_bit_mask = 0;
@@ -333,11 +316,11 @@ impl Game {
                 rank_bit_mask |= 1 << rank;
             }
             return match rank_bit_mask {
-                0b0110000000000 => 1,
-                0b1010000000000 => 2,
-                0b1100000000000 => 3,
-                0b1110000000000 => 4,
-                _ => 6,
+                0b0110000000000 => Some(1),
+                0b1010000000000 => Some(2),
+                0b1100000000000 => Some(3),
+                0b1110000000000 => Some(4),
+                _ => None,
             };
         }
     }
@@ -347,12 +330,12 @@ impl Game {
         self.current_player = Player::Opponent;
 
         // capture the cards on the table
-        let winner_of_the_trick = if self.is_bomb(&self.last_combination) < 6 {
+        let winner_of_the_trick = if self.is_bomb(&self.last_trick).is_some() {
             Player::Me
         } else {
             Player::Opponent
         };
-        for card_id in self.last_combination.iter() {
+        for card_id in self.last_trick.iter() {
             let cur_order = match self.locations[card_id.0] {
                 Location::Table { order, .. } => order,
                 _ => panic!("Wrong Location type"),
@@ -363,64 +346,439 @@ impl Game {
             };
         }
         // update last combination
-        self.last_combination = Vec::new();
+        self.last_trick = Vec::new();
     }
 
     // we assume card_ids is not empty
     pub fn play_cards(&mut self, card_ids: Vec<CardId>) -> bool {
-        if !self.validate_combination(&card_ids) {
-            return false;
-        } else {
-            // get the current order
-            let current_order = if self.last_combination.is_empty() {
-                self.current_start_order
-            } else {
-                let current_end_location = &self.locations[self.last_combination[0].0];
-                match current_end_location {
-                    Location::Table {
-                        order,
-                        captured_by: None,
-                    } => *order,
-                    _ => panic!("Invalid self.last_combination"),
+        // we need to check if the new cards are a bomb, and if the old cards are a bomb...
+        match &self.last_trick_type {
+            Some(TrickType::Bomb(old_bomb_rank)) => {
+                if let Some(new_bomb_rank) = self.is_bomb(&card_ids) {
+                    if new_bomb_rank > *old_bomb_rank {
+                        todo!("play the bomb and update last trick type");
+                    }
                 }
-            };
-            // move the cards to table
-            for card_id in card_ids.iter() {
-                self.locations[card_id.0] = Location::Table {
-                    order: current_order,
-                    captured_by: None,
-                };
+                return false;
             }
+            None => {
+                if let Some(bomb_rank) = self.is_bomb(&card_ids) {
+                    todo!("play the bomb and update last trick type");
+                }
 
-            // update the last combination
-            self.last_combination = card_ids;
+                let card_values = card_ids.iter().map(|id| id.to_value()).collect();
+                match is_valid_combination(&card_values) {
+                    None => return false,
+                    Some(combination_type) => {
+                        todo!("play the combination and update last trick type");
+                    }
+                }
+            }
+            Some(TrickType::Combination(old_combination_type)) => {
+                if let Some(bomb_rank) = self.is_bomb(&card_ids) {
+                    todo!("play the bomb and update last trick type");
+                }
 
-            // change the current player
-            self.current_player = Player::Opponent;
-            return true;
+                let card_values = card_ids.iter().map(|id| id.to_value()).collect();
+                match is_valid_combination(&card_values) {
+                    None => return false,
+                    Some(combination_type) => {
+                        match combination_type.has_higher_rank_than(&old_combination_type) {
+                            None => return false,
+                            Some(merged_combination_type) => {
+                                todo!("play the combination and update last trick type");
+                            }
+                        }
+                    }
+                }
+            }
         }
+
+        // if !self.validate_combination(&card_ids) {
+        //     return false;
+        // } else {
+        //     // get the current order
+        //     let current_order = if self.last_trick.is_empty() {
+        //         self.current_start_order
+        //     } else {
+        //         let current_end_location = &self.locations[self.last_trick[0].0];
+        //         match current_end_location {
+        //             Location::Table {
+        //                 order,
+        //                 captured_by: None,
+        //             } => *order,
+        //             _ => panic!("Invalid self.last_trick"),
+        //         }
+        //     };
+        //     // move the cards to table
+        //     for card_id in card_ids.iter() {
+        //         self.locations[card_id.0] = Location::Table {
+        //             order: current_order,
+        //             captured_by: None,
+        //         };
+        //     }
+
+        //     // update the last combination
+        //     self.last_trick = card_ids;
+
+        //     // change the current player
+        //     self.current_player = Player::Opponent;
+        //     return true;
+        // }
+    }
+
+    fn play_bomb(&mut self, card_ids: Vec<CardId>, bomb_rank: usize) {
+        self.last_trick_type = Some(TrickType::Bomb(bomb_rank));
+
+        self.last_trick = card_ids;
     }
 }
 
-pub struct SuitMap {
-    len: usize,
-    inserted: [bool; 4],
-}
+pub struct SuitSet([usize; 4]);
 
-impl SuitMap {
+impl SuitSet {
     fn new() -> Self {
-        SuitMap {
-            len: 0,
-            inserted: [false; 4],
-        }
+        SuitSet([0; 4])
     }
 
     fn insert(&mut self, suit: usize) {
-        self.len += !self.inserted[suit] as usize;
-        self.inserted[suit] = true;
+        self.0[suit] = 1;
     }
 
     fn len(&self) -> usize {
-        self.len
+        self.0.iter().sum()
+    }
+}
+
+// fn find_trick_type(card_values: &Vec<CardValue>) -> TrickType {}
+
+fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType> {
+    if card_values.is_empty() {
+        return None;
+    }
+
+    if card_values.len() == 1 {
+        return Some(CombinationType {
+            start_rank: card_values[0].rank(),
+            end_rank: card_values[0].rank(),
+            suit_count: 1,
+            num_extra_wildcards: 0,
+        });
+    }
+
+    let mut smallest_rank = 14;
+    let mut largest_rank = 1;
+    let mut suits = SuitSet::new();
+    let mut num_normal_cards: usize = 0;
+    for value in card_values {
+        if let CardValue::Normal { rank, suit } = value {
+            num_normal_cards += 1;
+            smallest_rank = smallest_rank.min(*rank);
+            largest_rank = largest_rank.max(*rank);
+            suits.insert(*suit);
+        }
+    }
+
+    // This will happen if all the cards were wildcards.
+    // Without this check, number_of_ranks can underflow.
+    if smallest_rank > largest_rank {
+        return None;
+    }
+
+    let number_of_ranks = largest_rank - smallest_rank + 1;
+    let min_combination_size = number_of_ranks * suits.len();
+    let num_required_wildcards = min_combination_size - num_normal_cards;
+    let num_wildcards = card_values.len() - num_normal_cards;
+
+    if card_values.len() == 2 && suits.len() == 1 {
+        if num_wildcards == 1 {
+            return Some(CombinationType {
+                start_rank: smallest_rank,
+                end_rank: largest_rank,
+                suit_count: 2,
+                num_extra_wildcards: 0,
+            });
+        } else {
+            return None;
+        }
+    }
+
+    if num_required_wildcards > num_wildcards {
+        None
+    } else {
+        let num_extra_wildcards = num_wildcards - num_required_wildcards;
+
+        if num_extra_wildcards % suits.len() != 0 && num_extra_wildcards % number_of_ranks != 0 {
+            // The number of extra wildcards doesn't fit an edge
+            None
+        } else if num_extra_wildcards % suits.len() != 0 {
+            Some(CombinationType {
+                start_rank: smallest_rank,
+                end_rank: largest_rank + num_extra_wildcards / suits.len(),
+                suit_count: suits.len(),
+                num_extra_wildcards: 0,
+            })
+        } else if num_extra_wildcards % number_of_ranks != 0 {
+            Some(CombinationType {
+                start_rank: smallest_rank,
+                end_rank: largest_rank,
+                suit_count: suits.len() + num_extra_wildcards / number_of_ranks,
+                num_extra_wildcards: 0,
+            })
+        } else {
+            Some(CombinationType {
+                start_rank: smallest_rank,
+                end_rank: largest_rank,
+                suit_count: suits.len(),
+                num_extra_wildcards,
+            })
+        }
+    }
+}
+
+impl CombinationType {
+    // Checks if self is compatible with and larger than other.
+    // If that is true, returns the disambiguated type of the larger combination, which
+    // will always be self.
+    //
+    // When comparing two combinations, we can only order them if they share
+    // the same type. Some combinations can have ambiguous types:
+    //
+    // 1x1 regular, 2 wild => 3 total
+    // 1x1 regular, 3 wild => 4 total
+    // 2x1 regular, 2 wild => 4 total
+    // 1x2 regular, 2 wild => 4 total
+    // 3x1 regular, 3 wild => 6 total
+    // 1x3 regular, 3 wild => 6 total
+    // 2x2 regular, 2 wild => 6 total
+    // 3x3 regular, 3 wild => 12 total
+    //
+    // (2x1 means the combination spans 2 ranks and 1 suit)
+    // when both self and other are ambiguious, only (3x1 regular, 3 wild => 6 total)
+    // and (1x3 regular, 3 wild => 6 total) don't have compatibility, but this case can be caught
+    // by the existing test.
+    fn has_higher_rank_than(&self, other: &Self) -> Option<CombinationType> {
+        if self.card_count() != other.card_count() {
+            return None;
+        }
+
+        let combined_suit_count = self.suit_count.max(other.suit_count);
+        let combined_rank_count = self.rank_count().max(other.rank_count());
+
+        // If the combined rectangle area is larger than the number of cards, we can't
+        // possibly fill it into a valid combination.
+        if combined_suit_count * combined_rank_count <= self.card_count()
+            && self.start_rank > other.start_rank
+        {
+            Some(CombinationType {
+                start_rank: self.start_rank,
+                end_rank: self.start_rank + combined_rank_count - 1,
+                suit_count: combined_suit_count,
+                num_extra_wildcards: self.card_count() - combined_suit_count * combined_rank_count,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    impl std::str::FromStr for CardValue {
+        type Err = ();
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+            let mut chars = s.chars();
+            let rank = match chars.next() {
+                Some('2') => 2,
+                Some('3') => 3,
+                Some('4') => 4,
+                Some('5') => 5,
+                Some('6') => 6,
+                Some('7') => 7,
+                Some('8') => 8,
+                Some('9') => 9,
+                Some('1') => match chars.next() {
+                    Some('0') => 10,
+                    _ => 0,
+                },
+                Some('J') => 11,
+                Some('Q') => 12,
+                Some('K') => 13,
+                Some(_) | None => 0,
+            };
+            let suit = match chars.next() {
+                Some('♠') => 0,
+                Some('♥') => 1,
+                Some('♦') => 2,
+                Some('♣') => 3,
+                Some(_) | None => 4,
+            };
+            match (rank, suit) {
+                (rank @ 2..=10, suit @ 0..=3) => Ok(CardValue::Normal { rank, suit }),
+                (rank @ 11..=13, 4) => Ok(CardValue::Wildcard { rank }),
+                _ => Err(()),
+            }
+        }
+    }
+
+    #[test]
+    fn test_valid_single() {
+        let card_values: Vec<CardValue> = vec!["2♦"].iter().map(|s| s.parse().unwrap()).collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 2,
+                end_rank: 2,
+                suit_count: 1,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_valid_wildcard_single() {
+        let card_values: Vec<CardValue> = vec!["Q"].iter().map(|s| s.parse().unwrap()).collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 12,
+                end_rank: 12,
+                suit_count: 1,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_valid_seven_of_a_kind() {
+        let card_values: Vec<CardValue> = vec!["10♠", "10♥", "10♦", "10♣", "J", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 10,
+                end_rank: 10,
+                suit_count: 4,
+                num_extra_wildcards: 3
+            })
+        );
+    }
+
+    #[test]
+    fn test_invalid_two_single_sequence() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
+    }
+
+    #[test]
+    fn test_valid_single_sequence() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "9♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 7,
+                end_rank: 9,
+                suit_count: 1,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_valid_sequence_wildcard() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 7,
+                end_rank: 10,
+                suit_count: 1,
+                num_extra_wildcards: 1
+            })
+        );
+    }
+
+    #[test]
+    fn test_invalid_combination_bomb() {
+        let card_values: Vec<CardValue> = vec!["J", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
+    }
+
+    #[test]
+    fn test_invalid_sequence_skip() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
+    }
+
+    #[test]
+    fn test_invalid_sequence_suit() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "9♠"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
+    }
+
+    #[test]
+    fn test_valid_double_sequence() {
+        let card_values: Vec<CardValue> = vec!["7♥", "7♣", "8♥", "8♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 7,
+                end_rank: 8,
+                suit_count: 2,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_valid_extra_wildcards() {
+        let card_values: Vec<CardValue> = vec!["2♦", "2♣", "3♣", "J", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 2,
+                end_rank: 3,
+                suit_count: 2,
+                num_extra_wildcards: 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_invalid_wildcard() {
+        let card_values: Vec<CardValue> = vec!["2♠", "2♥", "3♠", "3♥", "J"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
     }
 }

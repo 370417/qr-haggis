@@ -265,72 +265,14 @@ impl Game {
         opponent_num_of_card
     }
 
-    // 0:    3-5-7-9 (these 4 ranks in 4 different suits, no wild cards)
-    // 1:    J-Q
-    // 2:    J-K
-    // 3:    Q-K
-    // 4:    J-Q-K
-    // 5:    3-5-7-9 (these 4 ranks in one suit, no wild cards)
-    // None: not a bomb
-    fn is_bomb(&self, card_ids: &Vec<CardId>) -> Option<usize> {
-        if card_ids.len() == 4 {
-            let mut rank_bit_mask = 0;
-            for i in 0..4 {
-                let rank = match card_ids[i].to_value() {
-                    CardValue::Normal { rank, .. } => rank,
-                    CardValue::Wildcard { rank } => rank,
-                };
-                rank_bit_mask |= 1 << rank;
-            }
-            if rank_bit_mask == 0b1010101000 {
-                // is 3-5-7-9
-                let mut suit_bit_mask = 0;
-                for i in 0..4 {
-                    let suit = match card_ids[i].to_value() {
-                        CardValue::Normal { suit, .. } => suit,
-                        _ => panic!("Should never reach this line"),
-                    };
-                    suit_bit_mask |= 1 << suit;
-                }
-                if suit_bit_mask == 0b1111 {
-                    return Some(0);
-                } else if suit_bit_mask == 0b1
-                    || suit_bit_mask == 0b10
-                    || suit_bit_mask == 0b100
-                    || suit_bit_mask == 0b1000
-                {
-                    return Some(5);
-                } else {
-                    return None;
-                }
-            } else {
-                return None;
-            }
-        } else {
-            let mut rank_bit_mask = 0;
-            for card_id in card_ids.iter() {
-                let rank = match card_ids[card_id.0].to_value() {
-                    CardValue::Normal { rank, .. } => rank,
-                    CardValue::Wildcard { rank } => rank,
-                };
-                rank_bit_mask |= 1 << rank;
-            }
-            return match rank_bit_mask {
-                0b0110000000000 => Some(1),
-                0b1010000000000 => Some(2),
-                0b1100000000000 => Some(3),
-                0b1110000000000 => Some(4),
-                _ => None,
-            };
-        }
-    }
-
     fn pass(&mut self) {
         // change player
         self.current_player = Player::Opponent;
 
+        let card_values = self.last_trick.iter().map(|id| id.to_value()).collect();
+
         // capture the cards on the table
-        let winner_of_the_trick = if self.is_bomb(&self.last_trick).is_some() {
+        let winner_of_the_trick = if is_bomb(&card_values).is_some() {
             Player::Me
         } else {
             Player::Opponent
@@ -351,86 +293,65 @@ impl Game {
 
     // we assume card_ids is not empty
     pub fn play_cards(&mut self, card_ids: Vec<CardId>) -> bool {
-        // we need to check if the new cards are a bomb, and if the old cards are a bomb...
-        match &self.last_trick_type {
-            Some(TrickType::Bomb(old_bomb_rank)) => {
-                if let Some(new_bomb_rank) = self.is_bomb(&card_ids) {
-                    if new_bomb_rank > *old_bomb_rank {
-                        todo!("play the bomb and update last trick type");
-                    }
-                }
-                return false;
-            }
-            None => {
-                if let Some(bomb_rank) = self.is_bomb(&card_ids) {
-                    todo!("play the bomb and update last trick type");
-                }
+        let card_values = card_ids.iter().map(|id| id.to_value()).collect();
 
-                let card_values = card_ids.iter().map(|id| id.to_value()).collect();
-                match is_valid_combination(&card_values) {
-                    None => return false,
-                    Some(combination_type) => {
-                        todo!("play the combination and update last trick type");
-                    }
-                }
-            }
-            Some(TrickType::Combination(old_combination_type)) => {
-                if let Some(bomb_rank) = self.is_bomb(&card_ids) {
-                    todo!("play the bomb and update last trick type");
-                }
+        let current_trick_type = if let Some(bomb_rank) = is_bomb(&card_values) {
+            Some(TrickType::Bomb(bomb_rank))
+        } else {
+            is_valid_combination(&card_values)
+                .map(|combination_type| TrickType::Combination(combination_type))
+        };
 
-                let card_values = card_ids.iter().map(|id| id.to_value()).collect();
-                match is_valid_combination(&card_values) {
-                    None => return false,
-                    Some(combination_type) => {
-                        match combination_type.has_higher_rank_than(&old_combination_type) {
-                            None => return false,
-                            Some(merged_combination_type) => {
-                                todo!("play the combination and update last trick type");
-                            }
-                        }
-                    }
+        use TrickType::*;
+        self.last_trick_type = match (&self.last_trick_type, &current_trick_type) {
+            (_, None) => return false,
+            (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
+                if current_bomb <= last_bomb {
+                    return false;
+                } else {
+                    current_trick_type
                 }
             }
+            (Some(Bomb(_)), Some(Combination(_))) => return false,
+            (Some(Combination(last_combination)), Some(Combination(current_combination))) => {
+                if let Some(new_combination_type) =
+                    current_combination.has_higher_rank_than(last_combination)
+                {
+                    Some(Combination(new_combination_type))
+                } else {
+                    return false;
+                }
+            }
+            _ => current_trick_type,
+        };
+
+        // get the current order
+        let current_order = if self.last_trick.is_empty() {
+            self.current_start_order
+        } else {
+            let current_end_location = &self.locations[self.last_trick[0].0];
+            match current_end_location {
+                Location::Table {
+                    order,
+                    captured_by: None,
+                } => *order,
+                _ => panic!("Invalid self.last_trick"),
+            }
+        };
+        // move the cards to table
+        for card_id in card_ids.iter() {
+            self.locations[card_id.0] = Location::Table {
+                order: current_order,
+                captured_by: None,
+            };
         }
 
-        // if !self.validate_combination(&card_ids) {
-        //     return false;
-        // } else {
-        //     // get the current order
-        //     let current_order = if self.last_trick.is_empty() {
-        //         self.current_start_order
-        //     } else {
-        //         let current_end_location = &self.locations[self.last_trick[0].0];
-        //         match current_end_location {
-        //             Location::Table {
-        //                 order,
-        //                 captured_by: None,
-        //             } => *order,
-        //             _ => panic!("Invalid self.last_trick"),
-        //         }
-        //     };
-        //     // move the cards to table
-        //     for card_id in card_ids.iter() {
-        //         self.locations[card_id.0] = Location::Table {
-        //             order: current_order,
-        //             captured_by: None,
-        //         };
-        //     }
-
-        //     // update the last combination
-        //     self.last_trick = card_ids;
-
-        //     // change the current player
-        //     self.current_player = Player::Opponent;
-        //     return true;
-        // }
-    }
-
-    fn play_bomb(&mut self, card_ids: Vec<CardId>, bomb_rank: usize) {
-        self.last_trick_type = Some(TrickType::Bomb(bomb_rank));
-
+        // update the last combination
         self.last_trick = card_ids;
+
+        // change the current player
+        self.current_player = Player::Opponent;
+        return true;
     }
 }
 
@@ -452,6 +373,7 @@ impl SuitSet {
 
 // fn find_trick_type(card_values: &Vec<CardValue>) -> TrickType {}
 
+/// Preassumption: card_values does not represent a bomb
 fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType> {
     if card_values.is_empty() {
         return None;
@@ -479,11 +401,9 @@ fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType>
         }
     }
 
-    // This will happen if all the cards were wildcards.
+    // smallest_rank > largest_rank will happen if all the cards were wildcards.
     // Without this check, number_of_ranks can underflow.
-    if smallest_rank > largest_rank {
-        return None;
-    }
+    assert!(smallest_rank <= largest_rank);
 
     let number_of_ranks = largest_rank - smallest_rank + 1;
     let min_combination_size = number_of_ranks * suits.len();
@@ -536,6 +456,60 @@ fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType>
     }
 }
 
+// 0:    3-5-7-9 (these 4 ranks in 4 different suits, no wild cards)
+// 1:    J-Q
+// 2:    J-K
+// 3:    Q-K
+// 4:    J-Q-K
+// 5:    3-5-7-9 (these 4 ranks in one suit, no wild cards)
+// None: not a bomb
+fn is_bomb(card_values: &Vec<CardValue>) -> Option<usize> {
+    if card_values.len() == 4 {
+        let mut rank_bit_mask = 0;
+        for card_value in card_values {
+            let rank = card_value.rank();
+            rank_bit_mask |= 1 << rank;
+        }
+        if rank_bit_mask == 0b1010101000 {
+            // is 3-5-7-9
+            let mut suit_bit_mask = 0;
+            for i in 0..4 {
+                let suit = match card_values[i] {
+                    CardValue::Normal { suit, .. } => suit,
+                    _ => panic!("Should never reach this line"),
+                };
+                suit_bit_mask |= 1 << suit;
+            }
+            if suit_bit_mask == 0b1111 {
+                return Some(0);
+            } else if suit_bit_mask == 0b1
+                || suit_bit_mask == 0b10
+                || suit_bit_mask == 0b100
+                || suit_bit_mask == 0b1000
+            {
+                return Some(5);
+            } else {
+                return None;
+            }
+        } else {
+            return None;
+        }
+    } else {
+        let mut rank_bit_mask = 0;
+        for card_value in card_values.iter() {
+            let rank = card_value.rank();
+            rank_bit_mask |= 1 << rank;
+        }
+        return match rank_bit_mask {
+            0b0110000000000 => Some(1),
+            0b1010000000000 => Some(2),
+            0b1100000000000 => Some(3),
+            0b1110000000000 => Some(4),
+            _ => None,
+        };
+    }
+}
+
 impl CombinationType {
     // Checks if self is compatible with and larger than other.
     // If that is true, returns the disambiguated type of the larger combination, which
@@ -583,202 +557,4 @@ impl CombinationType {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    impl std::str::FromStr for CardValue {
-        type Err = ();
-
-        fn from_str(s: &str) -> Result<Self, Self::Err> {
-            let mut chars = s.chars();
-            let rank = match chars.next() {
-                Some('2') => 2,
-                Some('3') => 3,
-                Some('4') => 4,
-                Some('5') => 5,
-                Some('6') => 6,
-                Some('7') => 7,
-                Some('8') => 8,
-                Some('9') => 9,
-                Some('1') => match chars.next() {
-                    Some('0') => 10,
-                    _ => 0,
-                },
-                Some('J') => 11,
-                Some('Q') => 12,
-                Some('K') => 13,
-                Some(_) | None => 0,
-            };
-            let suit = match chars.next() {
-                Some('♠') => 0,
-                Some('♥') => 1,
-                Some('♦') => 2,
-                Some('♣') => 3,
-                Some(_) | None => 4,
-            };
-            match (rank, suit) {
-                (rank @ 2..=10, suit @ 0..=3) => Ok(CardValue::Normal { rank, suit }),
-                (rank @ 11..=13, 4) => Ok(CardValue::Wildcard { rank }),
-                _ => Err(()),
-            }
-        }
-    }
-
-    #[test]
-    fn test_valid_single() {
-        let card_values: Vec<CardValue> = vec!["2♦"].iter().map(|s| s.parse().unwrap()).collect();
-        assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
-                start_rank: 2,
-                end_rank: 2,
-                suit_count: 1,
-                num_extra_wildcards: 0
-            })
-        );
-    }
-
-    #[test]
-    fn test_valid_wildcard_single() {
-        let card_values: Vec<CardValue> = vec!["Q"].iter().map(|s| s.parse().unwrap()).collect();
-        assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
-                start_rank: 12,
-                end_rank: 12,
-                suit_count: 1,
-                num_extra_wildcards: 0
-            })
-        );
-    }
-
-    #[test]
-    fn test_valid_seven_of_a_kind() {
-        let card_values: Vec<CardValue> = vec!["10♠", "10♥", "10♦", "10♣", "J", "Q", "K"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
-                start_rank: 10,
-                end_rank: 10,
-                suit_count: 4,
-                num_extra_wildcards: 3
-            })
-        );
-    }
-
-    #[test]
-    fn test_invalid_two_single_sequence() {
-        let card_values: Vec<CardValue> = vec!["7♣", "8♣"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
-    }
-
-    #[test]
-    fn test_valid_single_sequence() {
-        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "9♣"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
-                start_rank: 7,
-                end_rank: 9,
-                suit_count: 1,
-                num_extra_wildcards: 0
-            })
-        );
-    }
-
-    #[test]
-    fn test_valid_sequence_wildcard() {
-        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣", "Q", "K"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
-                start_rank: 7,
-                end_rank: 10,
-                suit_count: 1,
-                num_extra_wildcards: 1
-            })
-        );
-    }
-
-    #[test]
-    fn test_invalid_combination_bomb() {
-        let card_values: Vec<CardValue> = vec!["J", "Q", "K"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
-    }
-
-    #[test]
-    fn test_invalid_sequence_skip() {
-        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
-    }
-
-    #[test]
-    fn test_invalid_sequence_suit() {
-        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "9♠"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
-    }
-
-    #[test]
-    fn test_valid_double_sequence() {
-        let card_values: Vec<CardValue> = vec!["7♥", "7♣", "8♥", "8♣"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
-                start_rank: 7,
-                end_rank: 8,
-                suit_count: 2,
-                num_extra_wildcards: 0
-            })
-        );
-    }
-
-    #[test]
-    fn test_valid_extra_wildcards() {
-        let card_values: Vec<CardValue> = vec!["2♦", "2♣", "3♣", "J", "Q", "K"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
-                start_rank: 2,
-                end_rank: 3,
-                suit_count: 2,
-                num_extra_wildcards: 2
-            })
-        );
-    }
-
-    #[test]
-    fn test_invalid_wildcard() {
-        let card_values: Vec<CardValue> = vec!["2♠", "2♥", "3♠", "3♥", "J"]
-            .iter()
-            .map(|s| s.parse().unwrap())
-            .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
-    }
-}
+mod tests;

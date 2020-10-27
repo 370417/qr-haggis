@@ -428,30 +428,33 @@ fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType>
     } else {
         let num_extra_wildcards = num_wildcards - num_required_wildcards;
 
-        if num_extra_wildcards % suits.len() != 0 && num_extra_wildcards % number_of_ranks != 0 {
+        match (
+            num_extra_wildcards % suits.len() == 0,
+            num_extra_wildcards % number_of_ranks == 0,
+        ) {
             // The number of extra wildcards doesn't fit an edge
-            None
-        } else if num_extra_wildcards % suits.len() != 0 {
-            Some(CombinationType {
+            (false, false) => None,
+            // If we can add a vertical line (eg make the sequence longer by adding another rank)
+            (true, false) => Some(CombinationType {
                 start_rank: smallest_rank,
                 end_rank: largest_rank + num_extra_wildcards / suits.len(),
                 suit_count: suits.len(),
                 num_extra_wildcards: 0,
-            })
-        } else if num_extra_wildcards % number_of_ranks != 0 {
-            Some(CombinationType {
+            }),
+            // If we can add a horizontal line (eg make the set bigger by adding another suit)
+            (false, true) => Some(CombinationType {
                 start_rank: smallest_rank,
                 end_rank: largest_rank,
                 suit_count: suits.len() + num_extra_wildcards / number_of_ranks,
                 num_extra_wildcards: 0,
-            })
-        } else {
-            Some(CombinationType {
+            }),
+            // We can add either type of line, so leave it ambiguous
+            (true, true) => Some(CombinationType {
                 start_rank: smallest_rank,
                 end_rank: largest_rank,
                 suit_count: suits.len(),
                 num_extra_wildcards,
-            })
+            }),
         }
     }
 }
@@ -557,4 +560,4 @@ impl CombinationType {
 }
 
 #[cfg(test)]
-mod tests;
+pub mod tests;

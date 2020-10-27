@@ -127,7 +127,7 @@ fn test_valid_single_sequence() {
 }
 
 #[test]
-fn test_valid_sequence_wildcard() {
+pub fn test_valid_sequence_wildcard() {
     let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣", "Q", "K"]
         .iter()
         .map(|s| s.parse().unwrap())
@@ -141,15 +141,6 @@ fn test_valid_sequence_wildcard() {
             num_extra_wildcards: 0
         })
     );
-}
-
-#[test]
-fn test_invalid_combination_bomb() {
-    let card_values: Vec<CardValue> = vec!["J", "Q", "K"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(is_valid_combination(&card_values), None);
 }
 
 #[test]

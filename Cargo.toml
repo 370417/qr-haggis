@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 rand = "0.7"
+serde = { version = "1.0", features = ["derive"] }
+ron = "0.6.2"

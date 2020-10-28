@@ -1,11 +1,13 @@
 use rand::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 enum Player {
     Me,
     Opponent,
 }
 
+#[derive(Serialize, Deserialize)]
 enum Location {
     Haggis,
     Hand(Player),
@@ -18,7 +20,7 @@ enum Location {
     },
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct CombinationType {
     start_rank: usize,
     end_rank: usize,
@@ -36,7 +38,8 @@ impl CombinationType {
     }
 }
 
-struct Game {
+#[derive(Serialize, Deserialize)]
+pub struct Game {
     /// The location of a card with id x is locations[x].
     locations: Vec<Location>,
     current_player: Player,
@@ -49,11 +52,13 @@ struct Game {
     current_start_order: usize,
 }
 
+#[derive(Serialize, Deserialize)]
 enum TrickType {
     Bomb(usize),
     Combination(CombinationType),
 }
 
+#[derive(Serialize, Deserialize)]
 enum CardValue {
     Normal {
         /// Rank is in the range 2..=10
@@ -87,7 +92,7 @@ impl CardValue {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize)]
 struct CardId(usize);
 
 impl CardId {
@@ -110,7 +115,7 @@ impl CardId {
 
 impl Game {
     /// Create and initialize a new game state.
-    fn create_state(qr_code: Option<&[u8]>) -> Self {
+    pub fn create_state(qr_code: Option<&[u8]>) -> Self {
         let mut game = Game {
             locations: Vec::new(),
             current_player: Player::Me,
@@ -128,11 +133,11 @@ impl Game {
         game
     }
 
-    fn set_state(&mut self, qr_code: &[u8]) {
+    pub fn set_state(&mut self, qr_code: &[u8]) {
         todo!();
     }
 
-    fn init_state(&mut self) {
+    pub fn init_state(&mut self) {
         // Even though we only loop over the first 28 indices, we still
         // need to shuffle all 36 normal cards so that the Haggis gets randomized.
         let mut indices: Vec<_> = (0..36).collect();
@@ -154,7 +159,7 @@ impl Game {
         }
     }
 
-    fn get_hand(&self) -> Vec<CardId> {
+    pub fn get_hand(&self) -> Vec<CardId> {
         let mut hand = Vec::new();
         for (i, location) in self.locations.iter().enumerate() {
             if let Location::Hand(Player::Me) = location {
@@ -165,7 +170,7 @@ impl Game {
     }
 
     /// Return the non-captured cards of the table
-    fn get_table(&self) -> Vec<Vec<CardId>> {
+    pub fn get_table(&self) -> Vec<Vec<CardId>> {
         if self.last_trick.is_empty() {
             return Vec::new();
         }
@@ -194,7 +199,7 @@ impl Game {
     }
 
     /// If game is over, return (my_score, opponent_score)
-    fn is_game_over(&self) -> Option<(usize, usize)> {
+    pub fn is_game_over(&self) -> Option<(usize, usize)> {
         let mut my_card_count = 0;
         let mut opponent_card_count = 0;
 
@@ -254,7 +259,7 @@ impl Game {
         }
     }
 
-    fn get_opponent_num_of_card(&self) -> usize {
+    pub fn get_opponent_num_of_card(&self) -> usize {
         let mut opponent_num_of_card: usize = 0;
         for location in self.locations.iter() {
             match location {
@@ -265,7 +270,7 @@ impl Game {
         opponent_num_of_card
     }
 
-    fn pass(&mut self) {
+    pub fn pass(&mut self) {
         // change player
         self.current_player = Player::Opponent;
 
@@ -503,11 +508,12 @@ fn is_bomb(card_values: &Vec<CardValue>) -> Option<usize> {
             let rank = card_value.rank();
             rank_bit_mask |= 1 << rank;
         }
+        println!("{}", rank_bit_mask);
         return match rank_bit_mask {
-            0b0110000000000 => Some(1),
-            0b1010000000000 => Some(2),
-            0b1100000000000 => Some(3),
-            0b1110000000000 => Some(4),
+            0b01100000000000 => Some(1),
+            0b10100000000000 => Some(2),
+            0b11000000000000 => Some(3),
+            0b11100000000000 => Some(4),
             _ => None,
         };
     }

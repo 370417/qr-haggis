@@ -38,168 +38,241 @@ impl std::str::FromStr for CardValue {
     }
 }
 
-#[test]
-fn test_valid_normal_single() {
-    let card_values: Vec<CardValue> = vec!["2♦"].iter().map(|s| s.parse().unwrap()).collect();
-    assert_eq!(
-        is_valid_combination(&card_values),
-        Some(CombinationType {
-            start_rank: 2,
-            end_rank: 2,
-            suit_count: 1,
-            num_extra_wildcards: 0
-        })
-    );
+mod tests_for_is_valid_combination {
+
+    use super::*;
+
+    #[test]
+    fn test_valid_normal_single() {
+        let card_values: Vec<CardValue> = vec!["2♦"].iter().map(|s| s.parse().unwrap()).collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 2,
+                end_rank: 2,
+                suit_count: 1,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_valid_wildcard_single() {
+        let card_values: Vec<CardValue> = vec!["Q"].iter().map(|s| s.parse().unwrap()).collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 12,
+                end_rank: 12,
+                suit_count: 1,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_valid_seven_of_a_kind() {
+        let card_values: Vec<CardValue> = vec!["10♠", "10♥", "10♦", "10♣", "J", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 10,
+                end_rank: 10,
+                suit_count: 7,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_valid_three_normal_three_wildcard() {
+        let card_values: Vec<CardValue> = vec!["10♠", "10♥", "10♦", "J", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 10,
+                end_rank: 10,
+                suit_count: 3,
+                num_extra_wildcards: 3
+            })
+        );
+    }
+
+    #[test]
+    fn test_invalid_two_single_sequence() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
+    }
+
+    #[test]
+    fn test_valid_single_sequence() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "9♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 7,
+                end_rank: 9,
+                suit_count: 1,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    pub fn test_valid_sequence_wildcard() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 7,
+                end_rank: 11,
+                suit_count: 1,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_invalid_sequence_skip() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
+    }
+
+    #[test]
+    fn test_invalid_sequence_suit() {
+        let card_values: Vec<CardValue> = vec!["7♣", "8♣", "9♠"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
+    }
+
+    #[test]
+    fn test_valid_double_sequence() {
+        let card_values: Vec<CardValue> = vec!["7♥", "7♣", "8♥", "8♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 7,
+                end_rank: 8,
+                suit_count: 2,
+                num_extra_wildcards: 0
+            })
+        );
+    }
+
+    #[test]
+    fn test_valid_extra_wildcards() {
+        let card_values: Vec<CardValue> = vec!["2♦", "2♣", "3♣", "J", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(
+            is_valid_combination(&card_values),
+            Some(CombinationType {
+                start_rank: 2,
+                end_rank: 3,
+                suit_count: 2,
+                num_extra_wildcards: 2
+            })
+        );
+    }
+
+    #[test]
+    fn test_invalid_wildcard() {
+        let card_values: Vec<CardValue> = vec!["2♠", "2♥", "3♠", "3♥", "J"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        assert_eq!(is_valid_combination(&card_values), None);
+    }
 }
 
-#[test]
-fn test_valid_wildcard_single() {
-    let card_values: Vec<CardValue> = vec!["Q"].iter().map(|s| s.parse().unwrap()).collect();
-    assert_eq!(
-        is_valid_combination(&card_values),
-        Some(CombinationType {
-            start_rank: 12,
-            end_rank: 12,
-            suit_count: 1,
-            num_extra_wildcards: 0
-        })
-    );
-}
+mod tests_for_is_bomb {
+    use super::*;
 
-#[test]
-fn test_valid_seven_of_a_kind() {
-    let card_values: Vec<CardValue> = vec!["10♠", "10♥", "10♦", "10♣", "J", "Q", "K"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(
-        is_valid_combination(&card_values),
-        Some(CombinationType {
-            start_rank: 10,
-            end_rank: 10,
-            suit_count: 7,
-            num_extra_wildcards: 0
-        })
-    );
-}
+    #[test]
+    fn test_0_bomb() {
+        let card_values: Vec<CardValue> = vec!["3♦", "5♠", "7♣", "9♥"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
 
-#[test]
-fn test_valid_three_normal_three_wildcard() {
-    let card_values: Vec<CardValue> = vec!["10♠", "10♥", "10♦", "J", "Q", "K"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(
-        is_valid_combination(&card_values),
-        Some(CombinationType {
-            start_rank: 10,
-            end_rank: 10,
-            suit_count: 3,
-            num_extra_wildcards: 3
-        })
-    );
-}
+        assert_eq!(is_bomb(&card_values), Some(0));
+    }
 
-#[test]
-fn test_invalid_two_single_sequence() {
-    let card_values: Vec<CardValue> = vec!["7♣", "8♣"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(is_valid_combination(&card_values), None);
-}
+    #[test]
+    fn test_1_bomb() {
+        let card_values: Vec<CardValue> =
+            vec!["J", "Q"].iter().map(|s| s.parse().unwrap()).collect();
 
-#[test]
-fn test_valid_single_sequence() {
-    let card_values: Vec<CardValue> = vec!["7♣", "8♣", "9♣"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(
-        is_valid_combination(&card_values),
-        Some(CombinationType {
-            start_rank: 7,
-            end_rank: 9,
-            suit_count: 1,
-            num_extra_wildcards: 0
-        })
-    );
-}
+        assert_eq!(is_bomb(&card_values), Some(1));
+    }
 
-#[test]
-pub fn test_valid_sequence_wildcard() {
-    let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣", "Q", "K"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(
-        is_valid_combination(&card_values),
-        Some(CombinationType {
-            start_rank: 7,
-            end_rank: 11,
-            suit_count: 1,
-            num_extra_wildcards: 0
-        })
-    );
-}
+    #[test]
+    fn test_2_bomb() {
+        let card_values: Vec<CardValue> =
+            vec!["J", "K"].iter().map(|s| s.parse().unwrap()).collect();
 
-#[test]
-fn test_invalid_sequence_skip() {
-    let card_values: Vec<CardValue> = vec!["7♣", "8♣", "10♣"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(is_valid_combination(&card_values), None);
-}
+        assert_eq!(is_bomb(&card_values), Some(2));
+    }
 
-#[test]
-fn test_invalid_sequence_suit() {
-    let card_values: Vec<CardValue> = vec!["7♣", "8♣", "9♠"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(is_valid_combination(&card_values), None);
-}
+    #[test]
+    fn test_3_bomb() {
+        let card_values: Vec<CardValue> =
+            vec!["Q", "K"].iter().map(|s| s.parse().unwrap()).collect();
 
-#[test]
-fn test_valid_double_sequence() {
-    let card_values: Vec<CardValue> = vec!["7♥", "7♣", "8♥", "8♣"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(
-        is_valid_combination(&card_values),
-        Some(CombinationType {
-            start_rank: 7,
-            end_rank: 8,
-            suit_count: 2,
-            num_extra_wildcards: 0
-        })
-    );
-}
+        assert_eq!(is_bomb(&card_values), Some(3));
+    }
 
-#[test]
-fn test_valid_extra_wildcards() {
-    let card_values: Vec<CardValue> = vec!["2♦", "2♣", "3♣", "J", "Q", "K"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(
-        is_valid_combination(&card_values),
-        Some(CombinationType {
-            start_rank: 2,
-            end_rank: 3,
-            suit_count: 2,
-            num_extra_wildcards: 2
-        })
-    );
-}
+    #[test]
+    fn test_4_bomb() {
+        let card_values: Vec<CardValue> = vec!["J", "Q", "K"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
 
-#[test]
-fn test_invalid_wildcard() {
-    let card_values: Vec<CardValue> = vec!["2♠", "2♥", "3♠", "3♥", "J"]
-        .iter()
-        .map(|s| s.parse().unwrap())
-        .collect();
-    assert_eq!(is_valid_combination(&card_values), None);
+        assert_eq!(is_bomb(&card_values), Some(4));
+    }
+
+    #[test]
+    fn test_5_bomb() {
+        let card_values: Vec<CardValue> = vec!["3♣", "5♣", "7♣", "9♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+
+        assert_eq!(is_bomb(&card_values), Some(5));
+    }
+
+    #[test]
+    fn test_invalid_0_bomb() {
+        let card_values: Vec<CardValue> = vec!["3♦", "5♠", "7♣", "9♣"]
+            .iter()
+            .map(|s| s.parse().unwrap())
+            .collect();
+
+        assert_eq!(is_bomb(&card_values), None);
+    }
 }

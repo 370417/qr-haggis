@@ -69,3 +69,22 @@ range of n_42: [0, 42! -1]
 smaller example:
 max_n_5 = b_5 + (5 * (b_4 + (4 * (b_3 + (3 * (b_2 + (2 * b_1)))))))
 max_n_5 = 4 + (5 * (3 + (4 * (2 + (3 * (1 + (2 * 0))))))) == 119 == 5! - 1
+
+---
+
+How many bits if we store game as an array:
+
+42 elements, each element needs to represent:
+    location type: haggis, hand1, hand2, table(order), captured_by
+    order is in the range: [0, 35] There's 36 playable cards, at least one card must be in a hand
+
+We could store:
+    1. order (0 if not on table): 6bits
+    2. owner (0 for haggis/not captured, 1 for hand1 or captured_by_p1, 2 for ...) 2bits
+    3. is_on_table: boolean 1bit
+
+How many bits if we store game as a big number:
+    log_2(42!/8!) for the order of the non-haggis cards < 155bits
+    8 bits for hand sizes
+    35 element array of 1.64765 or 2 bits (105 or 140 bits)
+    Total: 303 or 268

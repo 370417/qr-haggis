@@ -93,7 +93,7 @@ impl CardValue {
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
-struct CardId(usize);
+pub(crate) struct CardId(usize);
 
 impl CardId {
     /// CardIds: 0  1  2  ...   8  9  ...  35 36 37 38 39 40 41

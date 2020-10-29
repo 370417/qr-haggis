@@ -1,9 +1,10 @@
-mod card;
+mod compression;
 mod game;
 
 use game::Game;
 
 use image::Luma;
+use num_bigint::BigUint;
 use qrcode::QrCode;
 
 fn main() {

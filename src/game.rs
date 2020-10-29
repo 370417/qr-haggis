@@ -1,5 +1,18 @@
+use constant::*;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
+pub mod constant {
+    pub const HAGGIS_SIZE: usize = 8;
+    pub const NUM_WILDCARDS_PER_PLAYER: usize = 3;
+    pub const NUM_PLAYERS: usize = 2;
+    pub const MIN_RANK: usize = 2;
+    pub const MAX_RANK: usize = 10;
+    pub const NUM_RANKS: usize = (MAX_RANK - MIN_RANK + 1);
+    pub const NUM_SUITS: usize = 4;
+    pub const NUM_NORMAL: usize = NUM_RANKS * NUM_SUITS;
+    pub const DECK_SIZE: usize = (NUM_SUITS * NUM_RANKS) + (NUM_WILDCARDS_PER_PLAYER * NUM_PLAYERS);
+    pub const INIT_HAND_SIZE_WO_WILDCARD: usize = (NUM_NORMAL - HAGGIS_SIZE) / 2;
+}
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 enum Player {
@@ -93,17 +106,17 @@ impl CardValue {
 }
 
 #[derive(Copy, Clone, Serialize, Deserialize)]
-pub(crate) struct CardId(usize);
+pub struct CardId(usize);
 
 impl CardId {
     /// CardIds: 0  1  2  ...   8  9  ...  35 36 37 38 39 40 41
     /// Ranks:   2  3  4  ...  10  2  ...  10  J  Q  K  J  Q  K
     /// Suits:   0  0  0  ...   0  1  ...   3
     fn to_value(self) -> CardValue {
-        if self.0 < 36 {
+        if self.0 < NUM_NORMAL {
             CardValue::Normal {
-                rank: 2 + (self.0 % 9),
-                suit: self.0 / 9,
+                rank: 2 + (self.0 % NUM_RANKS),
+                suit: self.0 / NUM_RANKS,
             }
         } else {
             CardValue::Wildcard {
@@ -123,7 +136,7 @@ impl Game {
             last_trick_type: None,
             current_start_order: 0,
         };
-        for _ in 0..42 {
+        for _ in 0..DECK_SIZE {
             game.locations.push(Location::Haggis);
         }
         match qr_code {
@@ -140,21 +153,21 @@ impl Game {
     pub fn init_state(&mut self) {
         // Even though we only loop over the first 28 indices, we still
         // need to shuffle all 36 normal cards so that the Haggis gets randomized.
-        let mut indices: Vec<_> = (0..36).collect();
+        let mut indices: Vec<_> = (0..NUM_NORMAL).collect();
         indices.shuffle(&mut rand::thread_rng());
 
         // Cleaner version of the for loops:
-        for &i in &indices[0..14] {
+        for &i in &indices[0..INIT_HAND_SIZE_WO_WILDCARD] {
             self.locations[i] = Location::Hand(Player::Me);
         }
-        for &i in &indices[14..28] {
+        for &i in &indices[INIT_HAND_SIZE_WO_WILDCARD..(INIT_HAND_SIZE_WO_WILDCARD * 2)] {
             self.locations[i] = Location::Hand(Player::Opponent);
         }
 
-        for i in 36..39 {
+        for i in NUM_NORMAL..(NUM_NORMAL + NUM_WILDCARDS_PER_PLAYER) {
             self.locations[i] = Location::Hand(Player::Me);
         }
-        for i in 39..42 {
+        for i in (NUM_NORMAL + NUM_WILDCARDS_PER_PLAYER)..DECK_SIZE {
             self.locations[i] = Location::Hand(Player::Opponent);
         }
     }
@@ -360,11 +373,11 @@ impl Game {
     }
 }
 
-pub struct SuitSet([usize; 4]);
+pub struct SuitSet([usize; NUM_SUITS]);
 
 impl SuitSet {
     fn new() -> Self {
-        SuitSet([0; 4])
+        SuitSet([0; NUM_SUITS])
     }
 
     fn insert(&mut self, suit: usize) {
@@ -393,8 +406,8 @@ fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType>
         });
     }
 
-    let mut smallest_rank = 14;
-    let mut largest_rank = 1;
+    let mut smallest_rank = MAX_RANK + 1;
+    let mut largest_rank = MIN_RANK - 1;
     let mut suits = SuitSet::new();
     let mut num_normal_cards: usize = 0;
     for value in card_values {

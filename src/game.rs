@@ -14,14 +14,14 @@ pub mod constant {
     pub const INIT_HAND_SIZE_WO_WILDCARD: usize = (NUM_NORMAL - HAGGIS_SIZE) / 2;
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
-enum Player {
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum Player {
     Me,
     Opponent,
 }
 
 #[derive(Serialize, Deserialize)]
-enum Location {
+pub enum Location {
     Haggis,
     Hand(Player),
     /// Table is the location of all cards that players have played.
@@ -33,8 +33,17 @@ enum Location {
     },
 }
 
+impl Location {
+    pub fn captured_by(&self) -> Option<Player> {
+        match self {
+            Location::Table { captured_by, .. } => *captured_by,
+            _ => panic!(),
+        }
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
-struct CombinationType {
+pub struct CombinationType {
     start_rank: usize,
     end_rank: usize,
     suit_count: usize,
@@ -54,19 +63,20 @@ impl CombinationType {
 #[derive(Serialize, Deserialize)]
 pub struct Game {
     /// The location of a card with id x is locations[x].
-    locations: Vec<Location>,
-    current_player: Player,
+    pub locations: Vec<Location>,
+    pub current_player: Player,
+    pub me_went_first: boolean,
     /// Empty if game just started or the previous player just passed
-    last_trick: Vec<CardId>,
+    pub last_trick: Vec<CardId>,
     /// Type (including disambiguations) of the last trick played
-    last_trick_type: Option<TrickType>,
+    pub last_trick_type: Option<TrickType>,
     /// The order of the first combination played that has not yet been captured
     /// so that we can efficiently search for the non-captured cards
-    current_start_order: usize,
+    pub current_start_order: usize,
 }
 
 #[derive(Serialize, Deserialize)]
-enum TrickType {
+pub enum TrickType {
     Bomb(usize),
     Combination(CombinationType),
 }
@@ -132,6 +142,7 @@ impl Game {
         let mut game = Game {
             locations: Vec::new(),
             current_player: Player::Me,
+            me_went_first: true,
             last_trick: Vec::new(),
             last_trick_type: None,
             current_start_order: 0,

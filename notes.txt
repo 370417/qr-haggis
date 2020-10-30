@@ -88,3 +88,110 @@ How many bits if we store game as a big number:
     8 bits for hand sizes
     35 element array of 1.64765 or 2 bits (105 or 140 bits)
     Total: 303 or 268
+
+
+15 (41 encoded as 15)
+41 (40 encoded as 15)
+
+42 cards:
+maybe 42 bytes, if each card can be one byte
+
+you could also use 42 * 6 bits = 252 bits
+
+size of 42! = log_2 42! < 170 bits
+42 * 41 * ... * 9 = 42!/8!
+
+42^42 -> 227
+
+how to decode:
+    1. Turn the array of u8 into a BigInt (called n)
+    2. possibility1 = n % 42;
+    3. n = n / 42;
+    4. possibility2 = n % 41;
+    5. n = n / 41;
+    ...
+    card1 = possibility1
+    if card2 < card1 {
+        card2 = possibility2
+    } else {
+        card2 = possibility2 + 1
+    }
+    
+    ...
+    done!
+
+*******************************
+| player 1 hand    |----|
+
+
+
+P1 3 3
+P2 4 4
+P1 5 5
+P2 pass
+
+3 3 4 4 5 5
+
+We need to reconstruct:
+    Whose turn it is
+    P1's hand
+    P2's hand
+    History of combinations (including captured cards in order)
+    Who has captured what combination
+    Which cards are on the table
+    Cards in Haggis
+
+1. Store the cards in order
+2. Assume:
+    P1's hand comes first
+    then P2's hand
+    then all the cards played in chronological order
+    then Haggis (optional)
+
+3. Store:
+    size of P1 and P2's hand
+    
+How do we store what cards have been captured and by who?
+We know all the groups of combinations before the last one have been captured by a player.
+(edge case: no cards are on the table)
+We know who captured them by looking at who passed and what the last combination was
+
+Hard part: how many cards are in each combination?
+Easy case: no bombs, all the combinations in a group have the same size
+
+Array of booleans, size 42:
+index is the position of the card in the deck
+value of 1 means this card is the first card of a group
+    A group is a hand, the Haggis, or one combination
+value of 0 means this card is not the first card of a group
+100000100100100010001000100000000000000000000
+P1    P2 Combo1
+
+Problem: how do we know when people pass/which combinations are grouped together
+Also: What if someone's hand is empty?
+
+Array of base 3 values, size 42:
+index is the position of the card in the deck
+value of 0 means this card is not the first card of a group
+value of 1 means this card is the first card of a group
+    A group is a hand, the Haggis, or the head of a group of cobinations, or the tail of a group of combinations
+value of 2 means this card is marks a zero-sized group and is the first of the next group
+So if P1's hand is empty:
+200000100100100010001000100000000000000000000
+If P2's hand is empty:
+100000200100100010001000100000000000000000000
+
+Binary scheme: each group of combinations contains a variable number of groups
+Ternary scheme: each group of combinations contains exactly two groups
+
+Edge case: a group of combinations can have just one combination
+
+Start of head
+|
+v
+10002
+    A
+    |
+    (tail has size 0) Start of next head
+
+Save space on average:

@@ -1,6 +1,10 @@
+use crate::compression::{decode_game, encode_game};
 use constant::*;
+use image::{DynamicImage, ImageBuffer, Luma};
+use qrcode::QrCode;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
+
 pub mod constant {
     pub const HAGGIS_SIZE: usize = 8;
     pub const NUM_WILDCARDS_PER_PLAYER: usize = 3;
@@ -160,14 +164,43 @@ impl Game {
             game.locations.push(Location::Haggis);
         }
         match qr_code {
-            Some(data) => game.set_state(data),
+            Some(data) => game.read_qr_code(data),
             None => game.init_state(),
         };
         game
     }
 
-    pub fn set_state(&mut self, qr_code: &[u8]) {
-        todo!();
+    pub fn read_qr_code(&mut self, image: DynamicImage) {
+        // convert to gray scale
+        let img_gray = image.into_luma();
+
+        // create a decoder
+        let mut decoder = quircs::Quirc::default();
+
+        // identify all qr codes
+        let codes = decoder.identify(
+            img_gray.width() as usize,
+            img_gray.height() as usize,
+            &img_gray,
+        );
+
+        let code = codes
+            .next()
+            .expect("found no qr codes")
+            .expect("failed to extract qr code");
+        let decoded = code.decode().expect("failed to decode qr code");
+
+        *self = decode_game(&decoded.payload);
+    }
+
+    pub fn write_qr_code(&self, width: usize, height: usize) -> ImageBuffer<Luma<u8>, Vec<u8>> {
+        let encoded_game = encode_game(self);
+
+        // Encode some data into bits.
+        let code = QrCode::new(&encoded_game).unwrap();
+
+        // Render the bits into an image.
+        code.render::<Luma<u8>>().build()
     }
 
     pub fn init_state(&mut self) {

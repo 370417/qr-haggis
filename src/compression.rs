@@ -82,7 +82,7 @@ fn read_bit_from_grouping_array(
 // - group of combinations
 // - next group of combinations, after a player passed
 // - ...
-fn encode_game(game: &Game) -> Vec<u8> {
+pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
     println!("In encode_game. ");
     let mut my_hand = Vec::new();
     let mut opponent_hand = Vec::new();
@@ -173,7 +173,7 @@ fn encode_game(game: &Game) -> Vec<u8> {
     compressed_game
 }
 
-fn decode_game(compressed_game: &[u8]) -> Game {
+pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
     println!("In decode_game. ");
     let card_order_bytes = &compressed_game[0..CARD_ORDER_BYTE_LEN];
     let opponent_hand_size = compressed_game[CARD_ORDER_BYTE_LEN] as usize;

@@ -20,7 +20,16 @@ pub enum Player {
     Opponent,
 }
 
-#[derive(Serialize, Deserialize)]
+impl Player {
+    pub fn other(self) -> Self {
+        match self {
+            Player::Me => Player::Opponent,
+            Player::Opponent => Player::Me,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub enum Location {
     Haggis,
     Hand(Player),
@@ -60,12 +69,12 @@ impl CombinationType {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub struct Game {
     /// The location of a card with id x is locations[x].
     pub locations: Vec<Location>,
     pub current_player: Player,
-    pub me_went_first: boolean,
+    pub me_went_first: bool,
     /// Empty if game just started or the previous player just passed
     pub last_trick: Vec<CardId>,
     /// Type (including disambiguations) of the last trick played
@@ -75,7 +84,7 @@ pub struct Game {
     pub current_start_order: usize,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub enum TrickType {
     Bomb(usize),
     Combination(CombinationType),
@@ -115,8 +124,8 @@ impl CardValue {
     }
 }
 
-#[derive(Copy, Clone, Serialize, Deserialize)]
-pub struct CardId(usize);
+#[derive(Copy, Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
+pub struct CardId(pub usize);
 
 impl CardId {
     /// CardIds: 0  1  2  ...   8  9  ...  35 36 37 38 39 40 41
@@ -183,11 +192,13 @@ impl Game {
         }
     }
 
-    pub fn get_hand(&self) -> Vec<CardId> {
+    pub fn get_hand(&self, player: Player) -> Vec<CardId> {
         let mut hand = Vec::new();
         for (i, location) in self.locations.iter().enumerate() {
-            if let Location::Hand(Player::Me) = location {
-                hand.push(CardId(i));
+            if let Location::Hand(owner) = location {
+                if *owner == player {
+                    hand.push(CardId(i));
+                }
             }
         }
         hand
@@ -295,16 +306,13 @@ impl Game {
     }
 
     pub fn pass(&mut self) {
-        // change player
-        self.current_player = Player::Opponent;
-
         let card_values = self.last_trick.iter().map(|id| id.to_value()).collect();
 
         // capture the cards on the table
         let winner_of_the_trick = if is_bomb(&card_values).is_some() {
-            Player::Me
+            self.current_player
         } else {
-            Player::Opponent
+            self.current_player.other()
         };
         for card_id in self.last_trick.iter() {
             let cur_order = match self.locations[card_id.0] {
@@ -318,6 +326,9 @@ impl Game {
         }
         // update last combination
         self.last_trick = Vec::new();
+
+        // change player
+        self.current_player = self.current_player.other();
     }
 
     // we assume card_ids is not empty
@@ -379,7 +390,7 @@ impl Game {
         self.last_trick = card_ids;
 
         // change the current player
-        self.current_player = Player::Opponent;
+        self.current_player = self.current_player.other();
         return true;
     }
 }

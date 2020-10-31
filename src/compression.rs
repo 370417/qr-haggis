@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::game::constant::*;
+use crate::game::{constant::*, CardId};
 use crate::game::{Game, Location, Player};
 use num_bigint::BigUint;
 
@@ -8,6 +8,9 @@ const GROUPING_ARRAY_BYTE_LEN: usize = (2 * (DECK_SIZE - HAGGIS_SIZE) + 7) / 8;
 const CARD_ORDER_BYTE_LEN: usize = 20;
 
 fn compress_card_order(card_order_goal: &[usize]) -> BigUint {
+    assert!(card_order_goal.len() == DECK_SIZE - HAGGIS_SIZE);
+    println!("from compress_card_order: {:?}", card_order_goal);
+
     let mut compressed = BigUint::new(vec![0]);
 
     let mut curr_card_order: Vec<usize> = (0..DECK_SIZE).collect(); // can be removed
@@ -52,15 +55,25 @@ fn decompress_card_order(mut compressed: BigUint) -> Vec<usize> {
         curr_card_order.swap(i, i + distance);
     }
 
+    curr_card_order.truncate(DECK_SIZE - HAGGIS_SIZE);
     curr_card_order
 }
 
 // bit == 0 means the first bit (head of the combination),
 // bit == 1 means the second bit (head of the group of combinations)
-// card_idx is relative to the cards on table, not including the cards in hand
-fn set_1_for_grouping_array(grouping_array: &mut u128, card_idx: usize, bit: usize) {
-    let bit_idx = 2 * card_idx + bit;
+// grouping_array_idx is relative to the cards on table, not including the cards in hand
+fn set_1_for_grouping_array(grouping_array: &mut u128, grouping_array_idx: usize, bit: usize) {
+    let bit_idx = 2 * grouping_array_idx + bit;
     *grouping_array = *grouping_array | 1 << bit_idx;
+}
+
+fn read_bit_from_grouping_array(
+    grouping_array: &u128,
+    grouping_array_idx: usize,
+    bit: usize,
+) -> bool {
+    let bit_idx = 2 * grouping_array_idx + bit;
+    (*grouping_array & 1 << bit_idx) > 0
 }
 
 // Standard card order when sending a qr code:
@@ -69,7 +82,8 @@ fn set_1_for_grouping_array(grouping_array: &mut u128, card_idx: usize, bit: usi
 // - group of combinations
 // - next group of combinations, after a player passed
 // - ...
-fn compress_game(game: &Game) -> Vec<u8> {
+fn encode_game(game: &Game) -> Vec<u8> {
+    println!("In encode_game. ");
     let mut my_hand = Vec::new();
     let mut opponent_hand = Vec::new();
     let mut cards_on_table: HashMap<usize, Vec<usize>> = HashMap::new();
@@ -88,9 +102,9 @@ fn compress_game(game: &Game) -> Vec<u8> {
     let opponent_hand_size = opponent_hand.len();
 
     // Each card gets 2 bits
-    // The first bit is 1 iff the card is the first card of its combination
-    // The second bit is 1 iff the card is the first card of its combination group
-    // (ie start of game, or the other player just passed)
+    // The first bit is 1 iff the card is the last card of its combination
+    // The second bit is 1 iff the card is the last card of its combination group
+    // (we can use the second bit to mark whether someone passed on the last combination)
     let mut grouping_array = 0_u128;
     let mut card_order = [0; DECK_SIZE - HAGGIS_SIZE];
 
@@ -113,11 +127,13 @@ fn compress_game(game: &Game) -> Vec<u8> {
             Some(combination) => {
                 let curr_captured_by = game.locations[combination[0]].captured_by();
                 if curr_captured_by != prev_captured_by {
-                    set_1_for_grouping_array(&mut grouping_array, i, 1);
+                    if i > 0 {
+                        set_1_for_grouping_array(&mut grouping_array, i - 1, 1);
+                    }
                     prev_captured_by = curr_captured_by;
                 }
 
-                set_1_for_grouping_array(&mut grouping_array, i, 0);
+                set_1_for_grouping_array(&mut grouping_array, i + combination.len() - 1, 0);
                 for card_id in combination {
                     card_order[i + my_hand_size + opponent_hand_size] = *card_id;
                     i += 1;
@@ -150,10 +166,15 @@ fn compress_game(game: &Game) -> Vec<u8> {
     compressed_game.append(&mut grouping_array_bytes.to_vec());
     compressed_game.push(game.me_went_first as u8);
 
+    println!("Card order for compression: {:?}", card_order);
+    println!("Compressed card order: {:?}", compressed_card_order);
+    println!("Compressed grouping array: 0b{:b}", grouping_array);
+
     compressed_game
 }
 
-fn decompress_game(compressed_game: &[u8]) -> Game {
+fn decode_game(compressed_game: &[u8]) -> Game {
+    println!("In decode_game. ");
     let card_order_bytes = &compressed_game[0..CARD_ORDER_BYTE_LEN];
     let opponent_hand_size = compressed_game[CARD_ORDER_BYTE_LEN] as usize;
     let my_hand_size = compressed_game[CARD_ORDER_BYTE_LEN + 1] as usize;
@@ -162,7 +183,10 @@ fn decompress_game(compressed_game: &[u8]) -> Game {
     let me_went_first = *compressed_game.last().unwrap() == 0;
 
     let compressed_card_order = BigUint::from_bytes_be(card_order_bytes);
+    println!("Compressed card order: {:?}", compressed_card_order);
     let card_order = decompress_card_order(compressed_card_order);
+    println!("Card order after decompress: {:?}", card_order);
+    let net_hand_size = my_hand_size + opponent_hand_size;
 
     let mut fixed_grouping_array_bytes = [0; 16];
     let num_zeroes = 16 - grouping_array_bytes.len();
@@ -171,9 +195,15 @@ fn decompress_game(compressed_game: &[u8]) -> Game {
     }
     let grouping_array = u128::from_be_bytes(fixed_grouping_array_bytes);
 
+    println!("Decompressed Grouping array: 0b{:b}", grouping_array);
+
     let mut game = Game {
         locations: Vec::new(),
-        current_player: Player::Me,
+        current_player: if me_went_first {
+            Player::Me
+        } else {
+            Player::Opponent
+        },
         me_went_first,
         last_trick: Vec::new(),
         last_trick_type: None,
@@ -183,19 +213,51 @@ fn decompress_game(compressed_game: &[u8]) -> Game {
         game.locations.push(Location::Haggis);
     }
 
+    println!(
+        "decompressing: opponent_hand_size {}, my_hand_size {}",
+        opponent_hand_size, my_hand_size
+    );
+
     for i in 0..opponent_hand_size {
         let card_id = card_order[i];
         game.locations[card_id] = Location::Hand(Player::Opponent);
     }
 
-    for i in opponent_hand_size..(my_hand_size + opponent_hand_size) {
+    for i in opponent_hand_size..net_hand_size {
         let card_id = card_order[i];
         game.locations[card_id] = Location::Hand(Player::Me);
     }
 
-    for combination_idx in 0.. {}
+    let num_cards_on_table = DECK_SIZE - HAGGIS_SIZE - net_hand_size;
 
-    todo!();
+    let mut combination: Vec<CardId> = vec![CardId(card_order[net_hand_size])];
+    for grouping_array_idx in 1..num_cards_on_table {
+        let card_id = CardId(card_order[net_hand_size + grouping_array_idx]);
+        combination.push(card_id);
+        let is_last_card_of_combination =
+            read_bit_from_grouping_array(&grouping_array, grouping_array_idx, 0);
+        let is_last_card_of_combination_group =
+            read_bit_from_grouping_array(&grouping_array, grouping_array_idx, 1);
+        if is_last_card_of_combination {
+            let success = game.play_cards(combination);
+            if !success {
+                panic!("Play cards unsuccessful")
+            }
+            combination = Vec::new();
+        }
+        if is_last_card_of_combination_group {
+            game.pass();
+        }
+    }
+
+    match game.current_player {
+        Player::Me => {}
+        Player::Opponent => game.pass(),
+    }
+
+    println!("decode_game: {:?}", game);
+
+    game
 }
 
 mod test {
@@ -204,7 +266,7 @@ mod test {
     use rand::thread_rng;
 
     #[test]
-    fn test_compress_decompress() {
+    fn test_card_order_compress_decompress() {
         let mut rng = thread_rng();
         let mut card_order_goal: Vec<usize> = (0..DECK_SIZE).collect();
         card_order_goal.shuffle(&mut rng);
@@ -214,5 +276,119 @@ mod test {
             &card_order_goal[0..(DECK_SIZE - HAGGIS_SIZE)],
             &card_order_result[0..(DECK_SIZE - HAGGIS_SIZE)]
         );
+    }
+
+    #[test]
+    fn test_10000_card_order_compress_decompress() {
+        for _ in 0..10000 {
+            test_card_order_compress_decompress();
+        }
+    }
+
+    #[test]
+    fn test_init_game_compress_decompres() {
+        let game = Game::create_state(None);
+        let opponent_result = decode_game(&encode_game(&game));
+        println!("{:?}", opponent_result);
+        let my_result = decode_game(&encode_game(&opponent_result));
+        assert_eq!(game, my_result);
+    }
+
+    fn print_game(game: &Game) {
+        println!(
+            "My hand: {:?}",
+            game.get_hand(Player::Me)
+                .iter()
+                .map(|card_id| card_id.0)
+                .collect::<Vec<_>>()
+        );
+        println!(
+            "Opponent's hand: {:?}",
+            game.get_hand(Player::Opponent)
+                .iter()
+                .map(|card_id| card_id.0)
+                .collect::<Vec<_>>()
+        );
+        println!(
+            "Last trick: {:?}",
+            game.last_trick
+                .iter()
+                .map(|card_id| card_id.0)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_rand_game_encode_decode() {
+        use Location::*;
+        use Player::*;
+        let mut game = Game {
+            locations: vec![
+                Hand(Opponent),
+                Haggis,
+                Hand(Opponent),
+                Hand(Opponent),
+                Haggis,
+                Haggis,
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Me),
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Me),
+                Hand(Me),
+                Hand(Me),
+                Hand(Opponent),
+                Hand(Me),
+                Haggis,
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Opponent),
+                Haggis,
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Me),
+                Hand(Opponent),
+                Haggis,
+                Hand(Me),
+                Hand(Me),
+                Hand(Opponent),
+                Haggis,
+                Hand(Me),
+                Hand(Opponent),
+                Hand(Opponent),
+                Haggis,
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Opponent),
+                Hand(Opponent),
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Me),
+                Hand(Me),
+            ],
+            current_player: Me,
+            me_went_first: true,
+            last_trick: vec![],
+            last_trick_type: None,
+            current_start_order: 0,
+        };
+
+        game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
+
+        print_game(&game);
+
+        game.pass();
+
+        print_game(&game);
+
+        game.play_cards(vec![CardId(15)]);
+        game.play_cards(vec![CardId(9)]);
+
+        print_game(&game);
+
+        let opponent_result = decode_game(&encode_game(&game));
+        let my_result = decode_game(&encode_game(&opponent_result));
+        assert_eq!(game, my_result);
     }
 }

@@ -276,3 +276,10 @@ mod tests_for_is_bomb {
         assert_eq!(is_bomb(&card_values), None);
     }
 }
+
+mod tests_for_has_higher_rank {
+    use super::*;
+
+    #[test]
+    fn test_() {}
+}

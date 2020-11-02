@@ -151,7 +151,7 @@ impl CardId {
 
 impl Game {
     /// Create and initialize a new game state.
-    pub fn create_state(qr_code: Option<&[u8]>) -> Self {
+    pub fn create_state(qr_code: Option<DynamicImage>) -> Self {
         let mut game = Game {
             locations: Vec::new(),
             current_player: Player::Me,
@@ -178,7 +178,7 @@ impl Game {
         let mut decoder = quircs::Quirc::default();
 
         // identify all qr codes
-        let codes = decoder.identify(
+        let mut codes = decoder.identify(
             img_gray.width() as usize,
             img_gray.height() as usize,
             &img_gray,

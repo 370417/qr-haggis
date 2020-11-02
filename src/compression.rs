@@ -104,7 +104,6 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
     // Each card gets 2 bits
     // The first bit is 1 iff the card is the last card of its combination
     // The second bit is 1 iff the card is the last card of its combination group
-    // (we can use the second bit to mark whether someone passed on the last combination)
     let mut grouping_array = 0_u128;
     let mut card_order = [0; DECK_SIZE - HAGGIS_SIZE];
 
@@ -128,16 +127,19 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
                 let curr_captured_by = game.locations[combination[0]].captured_by();
                 if curr_captured_by != prev_captured_by {
                     if i > 0 {
+                        // mark the end of a group of combinations
                         set_1_for_grouping_array(&mut grouping_array, i - 1, 1);
                     }
                     prev_captured_by = curr_captured_by;
                 }
 
+                // mark the end of a combination
                 set_1_for_grouping_array(&mut grouping_array, i + combination.len() - 1, 0);
                 for card_id in combination {
                     card_order[i + my_hand_size + opponent_hand_size] = *card_id;
                     i += 1;
                 }
+                if cards_on_table.contains_key(combination_idx + 1) {}
             }
             None => break,
         }
@@ -252,6 +254,7 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
 
     match game.current_player {
         Player::Me => {}
+        // If we find that it's the opponent's turn, we assume that they meant to pass
         Player::Opponent => game.pass(),
     }
 

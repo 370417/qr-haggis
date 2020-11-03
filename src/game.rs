@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::compression::{decode_game, encode_game};
 use constant::*;
 use image::{DynamicImage, ImageBuffer, Luma};
@@ -238,21 +240,12 @@ impl Game {
     }
 
     /// Return the non-captured cards of the table
-    pub fn get_table(&self) -> Vec<Vec<CardId>> {
+    pub fn get_table(&self) -> HashMap<usize, Vec<CardId>> {
         if self.last_trick.is_empty() {
-            return Vec::new();
+            return HashMap::new();
         }
 
-        let current_end_location = &self.locations[self.last_trick[0].0];
-        let current_end_order = match current_end_location {
-            Location::Table {
-                order,
-                captured_by: None,
-            } => order,
-            _ => panic!("Invalid self.last_trick"),
-        };
-
-        let mut combinations = vec![Vec::new(); 1 + current_end_order - self.current_start_order];
+        let mut combinations: HashMap<usize, Vec<CardId>> = HashMap::new();
 
         for (i, location) in self.locations.iter().enumerate() {
             if let Location::Table {
@@ -260,7 +253,7 @@ impl Game {
                 order,
             } = location
             {
-                combinations[order - self.current_start_order].push(CardId(i));
+                combinations.entry(*order).or_default().push(CardId(i));
             }
         }
         combinations
@@ -339,26 +332,26 @@ impl Game {
     }
 
     pub fn pass(&mut self) {
-        let card_values = self.last_trick.iter().map(|id| id.to_value()).collect();
-
         // capture the cards on the table
-        let winner_of_the_trick = if is_bomb(&card_values).is_some() {
+        let winner_of_the_trick = if let Some(TrickType::Bomb(_)) = self.last_trick_type {
             self.current_player
         } else {
             self.current_player.other()
         };
-        for card_id in self.last_trick.iter() {
-            let cur_order = match self.locations[card_id.0] {
-                Location::Table { order, .. } => order,
-                _ => panic!("Wrong Location type"),
-            };
-            self.locations[card_id.0] = Location::Table {
-                order: cur_order,
-                captured_by: Some(winner_of_the_trick),
-            };
+        for location in &mut self.locations {
+            if let Location::Table { captured_by, .. } = location {
+                if captured_by.is_none() {
+                    *captured_by = Some(winner_of_the_trick);
+                }
+            }
         }
-        // update last combination
+
+        // store the new current start order
+        self.current_start_order = self.get_last_trick_order() + 1;
+
+        // update last combination and its type
         self.last_trick = Vec::new();
+        self.last_trick_type = None;
 
         // change player
         self.current_player = self.current_player.other();
@@ -402,14 +395,7 @@ impl Game {
         let current_order = if self.last_trick.is_empty() {
             self.current_start_order
         } else {
-            let current_end_location = &self.locations[self.last_trick[0].0];
-            match current_end_location {
-                Location::Table {
-                    order,
-                    captured_by: None,
-                } => *order,
-                _ => panic!("Invalid self.last_trick"),
-            }
+            self.get_last_trick_order() + 1
         };
         // move the cards to table
         for card_id in card_ids.iter() {
@@ -419,12 +405,37 @@ impl Game {
             };
         }
 
-        // update the last combination
+        // update the last trick
         self.last_trick = card_ids;
 
         // change the current player
         self.current_player = self.current_player.other();
         return true;
+    }
+
+    // Swap Me and Opponent
+    pub fn switch_perspective(&mut self) {
+        for location in &mut self.locations {
+            match location {
+                Location::Hand(player) => *player = player.other(),
+                Location::Table {
+                    captured_by: Some(player),
+                    ..
+                } => *player = player.other(),
+                _ => {}
+            }
+        }
+        self.current_player = self.current_player.other();
+        self.me_went_first = !self.me_went_first;
+    }
+
+    // Preassumption: last_trick is not empty
+    fn get_last_trick_order(&self) -> usize {
+        let current_end_location = &self.locations[self.last_trick[0].0];
+        match current_end_location {
+            Location::Table { order, .. } => *order,
+            _ => panic!("Invalid self.last_trick"),
+        }
     }
 }
 
@@ -632,6 +643,3 @@ impl CombinationType {
         }
     }
 }
-
-#[cfg(test)]
-pub mod tests;

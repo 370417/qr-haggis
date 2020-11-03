@@ -344,10 +344,67 @@ mod tests_for_qr_code {
         let dynamic_qr_code = DynamicImage::ImageLuma8(qr_code);
         game_from_qr_code.read_qr_code(dynamic_qr_code);
 
-        let qr_code = game_from_qr_code.write_qr_code(200, 200);
-        let dynamic_qr_code = DynamicImage::ImageLuma8(qr_code);
-        game_from_qr_code.read_qr_code(dynamic_qr_code);
-
         assert_eq!(game, game_from_qr_code);
+    }
+
+    #[test]
+    fn test_switch_perspective() {
+        use Location::*;
+        use Player::*;
+        let mut game = Game {
+            locations: vec![
+                Hand(Opponent),
+                Haggis,
+                Hand(Opponent),
+                Hand(Opponent),
+                Haggis,
+                Haggis,
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Me),
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Me),
+                Hand(Me),
+                Hand(Me),
+                Hand(Opponent),
+                Hand(Me),
+                Haggis,
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Opponent),
+                Haggis,
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Me),
+                Hand(Opponent),
+                Haggis,
+                Hand(Me),
+                Hand(Me),
+                Hand(Opponent),
+                Haggis,
+                Hand(Me),
+                Hand(Opponent),
+                Hand(Opponent),
+                Haggis,
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Opponent),
+                Hand(Opponent),
+                Hand(Opponent),
+                Hand(Me),
+                Hand(Me),
+                Hand(Me),
+            ],
+            current_player: Me,
+            me_went_first: true,
+            last_trick: vec![],
+            last_trick_type: None,
+            current_start_order: 0,
+        };
+
+        game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
+        game.switch_perspective();
+        todo!();
     }
 }

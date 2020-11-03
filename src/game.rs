@@ -20,6 +20,9 @@ pub mod constant {
     pub const INIT_HAND_SIZE_WO_WILDCARD: usize = (NUM_NORMAL - HAGGIS_SIZE) / 2;
 }
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Player {
     Me,
@@ -35,7 +38,7 @@ impl Player {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
 pub enum Location {
     Haggis,
     Hand(Player),
@@ -57,7 +60,7 @@ impl Location {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
 pub struct CombinationType {
     start_rank: usize,
     end_rank: usize,
@@ -75,7 +78,7 @@ impl CombinationType {
     }
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
 pub struct Game {
     /// The location of a card with id x is locations[x].
     pub locations: Vec<Location>,
@@ -90,7 +93,7 @@ pub struct Game {
     pub current_start_order: usize,
 }
 
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug)]
+#[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
 pub enum TrickType {
     Bomb(usize),
     Combination(CombinationType),

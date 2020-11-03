@@ -133,18 +133,18 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
                 }
 
                 // mark the end of a combination
-                set_1_for_grouping_array(&mut grouping_array, i + combination.len() - 1, 0);
                 for card_id in combination {
                     card_order[i + my_hand_size + opponent_hand_size] = *card_id;
                     i += 1;
                 }
+                set_1_for_grouping_array(&mut grouping_array, i - 1, 0);
             }
             None => {
                 let last_combination_idx = combination_idx - 1;
                 let combination = &cards_on_table[&last_combination_idx];
                 let curr_captured_by = game.locations[combination[0]].captured_by();
                 if curr_captured_by.is_some() {
-                    set_1_for_grouping_array(&mut grouping_array, i + combination.len() - 1, 1);
+                    set_1_for_grouping_array(&mut grouping_array, i - 1, 1);
                 }
                 break;
             }

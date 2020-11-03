@@ -404,7 +404,12 @@ mod tests_for_qr_code {
         };
 
         game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
+        let game_copy = game.clone();
+
+        assert_eq!(game.current_player, Player::Opponent);
         game.switch_perspective();
-        todo!();
+        assert_eq!(game.current_player, Player::Me);
+        game.switch_perspective();
+        assert_eq!(game, game_copy);
     }
 }

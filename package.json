@@ -1,0 +1,23 @@
+{
+  "name": "qr-haggis",
+  "version": "0.1.0",
+  "description": "![A QR code containing the word \"Haggis\"](Haggis.gif)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "wasm-pack build --target web; rollup ./main.js --format iife --file ./pkg/bundle.js; python3 -m http.server 8080"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/370417/qr-haggis.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/370417/qr-haggis/issues"
+  },
+  "homepage": "https://github.com/370417/qr-haggis#readme",
+  "devDependencies": {
+    "rollup": "^2.33.1"
+  }
+}

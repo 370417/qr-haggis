@@ -7,6 +7,42 @@ use image::Luma;
 use num_bigint::BigUint;
 use qrcode::QrCode;
 
+use wasm_bindgen::prelude::*;
+use yew::prelude::*;
+use yew::services::ConsoleService;
+
+#[wasm_bindgen]
+pub fn run_app() {
+    yew::start_app::<App>();
+    ConsoleService::log("Hello world");
+}
+
+struct App {}
+
+impl yew::Component for App {
+    type Message = ();
+
+    type Properties = ();
+
+    fn create(_props: Self::Properties, _link: yew::ComponentLink<Self>) -> Self {
+        App {}
+    }
+
+    fn update(&mut self, _msg: Self::Message) -> yew::ShouldRender {
+        false
+    }
+
+    fn change(&mut self, _props: Self::Properties) -> yew::ShouldRender {
+        false
+    }
+
+    fn view(&self) -> yew::Html {
+        html! {
+            { "Hello world" }
+        }
+    }
+}
+
 fn main() {
     let game = Game::create_state(None);
 

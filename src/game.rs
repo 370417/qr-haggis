@@ -435,6 +435,10 @@ impl Game {
                         {
                             Some(Normal(new_normal_type))
                         } else {
+                            eprintln!(
+                                "last_normal {:?}, current_normal {:?}",
+                                last_normal, current_normal
+                            );
                             panic!();
                         }
                     }

@@ -306,8 +306,8 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
     //using grouping array to parse cards on the table, also replay the game at the same time
     let num_cards_on_table = DECK_SIZE - HAGGIS_SIZE - net_hand_size;
 
-    let mut combination: Vec<CardId> = vec![CardId(card_order[net_hand_size])];
-    for grouping_array_idx in 1..num_cards_on_table {
+    let mut combination: Vec<CardId> = Vec::new();
+    for grouping_array_idx in 0..num_cards_on_table {
         let card_id = CardId(card_order[net_hand_size + grouping_array_idx]);
         combination.push(card_id);
         let is_last_card_of_combination =
@@ -338,12 +338,12 @@ mod test {
         let mut rng = thread_rng();
         let mut card_order_goal: Vec<usize> = (0..DECK_SIZE).collect();
         card_order_goal.shuffle(&mut rng);
+        card_order_goal.truncate(DECK_SIZE - HAGGIS_SIZE);
         println!("{:?}", card_order_goal);
-        let card_order_result = decompress_card_order(compress_card_order(&card_order_goal));
-        assert_eq!(
+        let card_order_result = decompress_card_order(compress_card_order(
             &card_order_goal[0..(DECK_SIZE - HAGGIS_SIZE)],
-            &card_order_result[0..(DECK_SIZE - HAGGIS_SIZE)]
-        );
+        ));
+        assert_eq!(&card_order_goal, &card_order_result);
     }
 
     #[test]
@@ -442,8 +442,8 @@ mod test {
 
         print_game(&game);
 
-        game.play_cards(vec![CardId(15)]);
-        game.play_cards(vec![CardId(9)]);
+        game.play_cards(vec![CardId(10)]);
+        game.play_cards(vec![CardId(6)]);
 
         print_game(&game);
 

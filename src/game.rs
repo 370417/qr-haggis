@@ -23,6 +23,11 @@ pub mod constant {
 #[cfg(test)]
 mod tests;
 
+// The game has three levels:
+// - Combination: I play a combination, you play a combination
+// - CombinationGroup: I pass, you pass
+// - Game (called hand in the rulebook): I empty my hand, you empty your hand
+
 #[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Player {
     Me,
@@ -43,7 +48,7 @@ pub enum Location {
     Haggis,
     Hand(Player),
     /// Table is the location of all cards that players have played.
-    /// Order is the number of combinations played (across all tricks) before this card.
+    /// Order is the number of combinations played (across all combination groups) before this card.
     /// Order will have the same value for all the cards in a combination.
     Table {
         captured_by: Option<Player>,
@@ -61,14 +66,14 @@ impl Location {
 }
 
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
-pub struct CombinationType {
+pub struct NormalType {
     start_rank: usize,
     end_rank: usize,
     suit_count: usize,
     num_extra_wildcards: usize,
 }
 
-impl CombinationType {
+impl NormalType {
     fn rank_count(&self) -> usize {
         self.end_rank - self.start_rank + 1
     }
@@ -84,19 +89,16 @@ pub struct Game {
     pub locations: Vec<Location>,
     pub current_player: Player,
     pub me_went_first: bool,
-    /// Empty if game just started or the previous player just passed
-    pub last_trick: Vec<CardId>,
-    /// Type (including disambiguations) of the last trick played
-    pub last_trick_type: Option<TrickType>,
-    /// The order of the first combination played that has not yet been captured
-    /// so that we can efficiently search for the non-captured cards
-    pub current_start_order: usize,
+    /// Type (including disambiguations) of the last combination played
+    pub last_combination_type: Option<CombinationType>,
+    /// The order that the next card combination will have
+    pub next_order: usize,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
-pub enum TrickType {
+pub enum CombinationType {
     Bomb(usize),
-    Combination(CombinationType),
+    Normal(NormalType),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -161,9 +163,8 @@ impl Game {
             locations: Vec::new(),
             current_player: Player::Me,
             me_went_first: true,
-            last_trick: Vec::new(),
-            last_trick_type: None,
-            current_start_order: 0,
+            last_combination_type: None,
+            next_order: 0,
         };
         for _ in 0..DECK_SIZE {
             game.locations.push(Location::Haggis);
@@ -244,11 +245,7 @@ impl Game {
 
     /// Return the non-captured cards of the table
     pub fn get_table(&self) -> HashMap<usize, Vec<CardId>> {
-        if self.last_trick.is_empty() {
-            return HashMap::new();
-        }
-
-        let mut combinations: HashMap<usize, Vec<CardId>> = HashMap::new();
+        let mut non_captured_combinations: HashMap<usize, Vec<CardId>> = HashMap::new();
 
         for (i, location) in self.locations.iter().enumerate() {
             if let Location::Table {
@@ -256,14 +253,17 @@ impl Game {
                 order,
             } = location
             {
-                combinations.entry(*order).or_default().push(CardId(i));
+                non_captured_combinations
+                    .entry(*order)
+                    .or_default()
+                    .push(CardId(i));
             }
         }
-        combinations
+        non_captured_combinations
     }
 
     /// If game is over, return (my_score, opponent_score)
-    pub fn is_game_over(&self) -> Option<(usize, usize)> {
+    pub fn is_game_over(&mut self) -> Option<(usize, usize)> {
         let mut my_card_count = 0;
         let mut opponent_card_count = 0;
 
@@ -276,6 +276,12 @@ impl Game {
         }
 
         if my_card_count == 0 || opponent_card_count == 0 {
+            // Capture the last combination group
+            // Because the winner of the last combination group was the last
+            // person to play, self.play_cards will switch the current player
+            // to their opponent, so self.capture_table will assign cards correctly
+            self.capture_table();
+
             let mut my_score = 0;
             let mut opponent_score = 0;
 
@@ -288,7 +294,7 @@ impl Game {
             for (i, location) in self.locations.iter().enumerate() {
                 let card_id = CardId(i);
                 match location {
-                    // All point  cards (i.e., any 3, 5, 7, 9, J, Q, or K), captured during trick play,
+                    // All point  cards (i.e., any 3, 5, 7, 9, J, Q, or K) captured
                     // are  scored by the capturing player.
                     Location::Table {
                         captured_by: Some(Player::Me),
@@ -304,10 +310,15 @@ impl Game {
                     }
                     // Point cards left in the opponent's hand and any point cards found in the
                     // Haggis are scored by the player who won the hand.
-                    Location::Hand(..) => {
+                    Location::Hand(..) | Location::Haggis => {
                         winner_of_hand_bonus += card_id.to_value().point_value();
                     }
-                    _ => {}
+                    Location::Table {
+                        captured_by: None, ..
+                    } => {
+                        // The last set of cards should be captured by the winner
+                        todo!()
+                    }
                 }
             }
 
@@ -334,9 +345,11 @@ impl Game {
         opponent_num_of_card
     }
 
-    pub fn pass(&mut self) {
+    /// Capture the cards on the table without changing whose turn it is
+    fn capture_table(&mut self) {
         // capture the cards on the table
-        let winner_of_the_trick = if let Some(TrickType::Bomb(_)) = self.last_trick_type {
+        let player_who_captures = if let Some(CombinationType::Bomb(_)) = self.last_combination_type
+        {
             self.current_player
         } else {
             self.current_player.other()
@@ -344,76 +357,102 @@ impl Game {
         for location in &mut self.locations {
             if let Location::Table { captured_by, .. } = location {
                 if captured_by.is_none() {
-                    *captured_by = Some(winner_of_the_trick);
+                    *captured_by = Some(player_who_captures);
                 }
             }
         }
 
-        // store the new current start order
-        self.current_start_order = self.get_last_trick_order() + 1;
-
-        // update last combination and its type
-        self.last_trick = Vec::new();
-        self.last_trick_type = None;
-
-        // change player
-        self.current_player = self.current_player.other();
+        self.last_combination_type = None;
     }
 
-    // we assume card_ids is not empty
-    pub fn play_cards(&mut self, card_ids: Vec<CardId>) -> bool {
-        let card_values = card_ids.iter().map(|id| id.to_value()).collect();
-
-        let current_trick_type = if let Some(bomb_rank) = is_bomb(&card_values) {
-            Some(TrickType::Bomb(bomb_rank))
-        } else {
-            is_valid_combination(&card_values)
-                .map(|combination_type| TrickType::Combination(combination_type))
-        };
-
-        use TrickType::*;
-        self.last_trick_type = match (&self.last_trick_type, &current_trick_type) {
-            (_, None) => return false,
-            (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
-                if current_bomb <= last_bomb {
-                    return false;
-                } else {
-                    current_trick_type
-                }
-            }
-            (Some(Bomb(_)), Some(Combination(_))) => return false,
-            (Some(Combination(last_combination)), Some(Combination(current_combination))) => {
-                if let Some(new_combination_type) =
-                    current_combination.has_higher_rank_than(last_combination)
-                {
-                    Some(Combination(new_combination_type))
-                } else {
-                    return false;
-                }
-            }
-            _ => current_trick_type,
-        };
-
-        // get the current order
-        let current_order = if self.last_trick.is_empty() {
-            self.current_start_order
-        } else {
-            self.get_last_trick_order() + 1
-        };
-        // move the cards to table
-        for card_id in card_ids.iter() {
-            self.locations[card_id.0] = Location::Table {
-                order: current_order,
-                captured_by: None,
-            };
+    // card_ids can be empty
+    // Returns true on success, false on failure
+    // Assumption: current_player == Player::Me
+    pub fn can_play_cards(&mut self, card_ids: Vec<CardId>) -> bool {
+        if card_ids.is_empty() {
+            return true;
         }
 
-        // update the last trick
-        self.last_trick = card_ids;
+        let card_values = card_ids.iter().map(|id| id.to_value()).collect();
+
+        let current_combination_type = if let Some(bomb_rank) = is_bomb(&card_values) {
+            Some(CombinationType::Bomb(bomb_rank))
+        } else {
+            is_valid_normal(&card_values).map(|normal_type| CombinationType::Normal(normal_type))
+        };
+
+        use CombinationType::*;
+        match (&self.last_combination_type, &current_combination_type) {
+            (_, None) => false,
+            (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
+                if current_bomb <= last_bomb {
+                    false
+                } else {
+                    true
+                }
+            }
+            (Some(Bomb(_)), Some(Normal(_))) => false,
+            (Some(Normal(last_normal)), Some(Normal(current_normal))) => {
+                if let Some(_) = current_normal.has_higher_rank_than(last_normal) {
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => true,
+        }
+    }
+
+    // We pass if card_ids is empty
+    pub fn play_cards(&mut self, card_ids: Vec<CardId>) {
+        if card_ids.is_empty() {
+            self.capture_table();
+        } else {
+            let card_values = card_ids.iter().map(|id| id.to_value()).collect();
+
+            let current_combination_type = if let Some(bomb_rank) = is_bomb(&card_values) {
+                Some(CombinationType::Bomb(bomb_rank))
+            } else {
+                is_valid_normal(&card_values)
+                    .map(|normal_type| CombinationType::Normal(normal_type))
+            };
+
+            use CombinationType::*;
+            self.last_combination_type =
+                match (&self.last_combination_type, &current_combination_type) {
+                    (_, None) => panic!(),
+                    (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
+                        if current_bomb <= last_bomb {
+                            panic!();
+                        } else {
+                            current_combination_type
+                        }
+                    }
+                    (Some(Bomb(_)), Some(Normal(_))) => panic!(),
+                    (Some(Normal(last_normal)), Some(Normal(current_normal))) => {
+                        if let Some(new_normal_type) =
+                            current_normal.has_higher_rank_than(last_normal)
+                        {
+                            Some(Normal(new_normal_type))
+                        } else {
+                            panic!();
+                        }
+                    }
+                    _ => current_combination_type,
+                };
+
+            // move the cards to table
+            for card_id in card_ids.iter() {
+                self.locations[card_id.0] = Location::Table {
+                    order: self.next_order,
+                    captured_by: None,
+                };
+            }
+            self.next_order += 1;
+        }
 
         // change the current player
         self.current_player = self.current_player.other();
-        return true;
     }
 
     // Swap Me and Opponent
@@ -430,15 +469,6 @@ impl Game {
         }
         self.current_player = self.current_player.other();
         self.me_went_first = !self.me_went_first;
-    }
-
-    // Preassumption: last_trick is not empty
-    fn get_last_trick_order(&self) -> usize {
-        let current_end_location = &self.locations[self.last_trick[0].0];
-        match current_end_location {
-            Location::Table { order, .. } => *order,
-            _ => panic!("Invalid self.last_trick"),
-        }
     }
 }
 
@@ -458,16 +488,14 @@ impl SuitSet {
     }
 }
 
-// fn find_trick_type(card_values: &Vec<CardValue>) -> TrickType {}
-
 /// Preassumption: card_values does not represent a bomb
-fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType> {
+fn is_valid_normal(card_values: &Vec<CardValue>) -> Option<NormalType> {
     if card_values.is_empty() {
         return None;
     }
 
     if card_values.len() == 1 {
-        return Some(CombinationType {
+        return Some(NormalType {
             start_rank: card_values[0].rank(),
             end_rank: card_values[0].rank(),
             suit_count: 1,
@@ -493,13 +521,13 @@ fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType>
     assert!(smallest_rank <= largest_rank);
 
     let number_of_ranks = largest_rank - smallest_rank + 1;
-    let min_combination_size = number_of_ranks * suits.len();
-    let num_required_wildcards = min_combination_size - num_normal_cards;
+    let min_normal_size = number_of_ranks * suits.len();
+    let num_required_wildcards = min_normal_size - num_normal_cards;
     let num_wildcards = card_values.len() - num_normal_cards;
 
     if card_values.len() == 2 && suits.len() == 1 {
         if num_wildcards == 1 {
-            return Some(CombinationType {
+            return Some(NormalType {
                 start_rank: smallest_rank,
                 end_rank: largest_rank,
                 suit_count: 2,
@@ -522,21 +550,21 @@ fn is_valid_combination(card_values: &Vec<CardValue>) -> Option<CombinationType>
             // The number of extra wildcards doesn't fit an edge
             (false, false) => None,
             // If we can add a vertical line (eg make the sequence longer by adding another rank)
-            (true, false) => Some(CombinationType {
+            (true, false) => Some(NormalType {
                 start_rank: smallest_rank,
                 end_rank: largest_rank + num_extra_wildcards / suits.len(),
                 suit_count: suits.len(),
                 num_extra_wildcards: 0,
             }),
             // If we can add a horizontal line (eg make the set bigger by adding another suit)
-            (false, true) => Some(CombinationType {
+            (false, true) => Some(NormalType {
                 start_rank: smallest_rank,
                 end_rank: largest_rank,
                 suit_count: suits.len() + num_extra_wildcards / number_of_ranks,
                 num_extra_wildcards: 0,
             }),
             // We can add either type of line, so leave it ambiguous
-            (true, true) => Some(CombinationType {
+            (true, true) => Some(NormalType {
                 start_rank: smallest_rank,
                 end_rank: largest_rank,
                 suit_count: suits.len(),
@@ -601,13 +629,13 @@ fn is_bomb(card_values: &Vec<CardValue>) -> Option<usize> {
     }
 }
 
-impl CombinationType {
+impl NormalType {
     // Checks if self is compatible with and larger than other.
-    // If that is true, returns the disambiguated type of the larger combination, which
+    // If that is true, returns the disambiguated type of the larger normal combination, which
     // will always be self.
     //
-    // When comparing two combinations, we can only order them if they share
-    // the same type. Some combinations can have ambiguous types:
+    // When comparing two normal combinations, we can only order them if they share
+    // the same type. Some normal combinations can have ambiguous types:
     //
     // 1x1 regular, 2 wild => 3 total
     // 1x1 regular, 3 wild => 4 total
@@ -618,11 +646,11 @@ impl CombinationType {
     // 2x2 regular, 2 wild => 6 total
     // 3x3 regular, 3 wild => 12 total
     //
-    // (2x1 means the combination spans 2 ranks and 1 suit)
+    // (2x1 means the normal combination spans 2 ranks and 1 suit)
     // when both self and other are ambiguious, only (3x1 regular, 3 wild => 6 total)
     // and (1x3 regular, 3 wild => 6 total) don't have compatibility, but this case can be caught
     // by the existing test.
-    fn has_higher_rank_than(&self, other: &Self) -> Option<CombinationType> {
+    fn has_higher_rank_than(&self, other: &Self) -> Option<NormalType> {
         if self.card_count() != other.card_count() {
             return None;
         }
@@ -631,11 +659,11 @@ impl CombinationType {
         let combined_rank_count = self.rank_count().max(other.rank_count());
 
         // If the combined rectangle area is larger than the number of cards, we can't
-        // possibly fill it into a valid combination.
+        // possibly fill it into a valid normal combination.
         if combined_suit_count * combined_rank_count <= self.card_count()
             && self.start_rank > other.start_rank
         {
-            Some(CombinationType {
+            Some(NormalType {
                 start_rank: self.start_rank,
                 end_rank: self.start_rank + combined_rank_count - 1,
                 suit_count: combined_suit_count,

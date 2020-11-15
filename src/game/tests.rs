@@ -38,7 +38,7 @@ impl std::str::FromStr for CardValue {
     }
 }
 
-mod tests_for_is_valid_combination {
+mod tests_for_is_valid_normal {
 
     use super::*;
 
@@ -46,8 +46,8 @@ mod tests_for_is_valid_combination {
     fn test_valid_normal_single() {
         let card_values: Vec<CardValue> = vec!["2♦"].iter().map(|s| s.parse().unwrap()).collect();
         assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
+            is_valid_normal(&card_values),
+            Some(NormalType {
                 start_rank: 2,
                 end_rank: 2,
                 suit_count: 1,
@@ -60,8 +60,8 @@ mod tests_for_is_valid_combination {
     fn test_valid_wildcard_single() {
         let card_values: Vec<CardValue> = vec!["Q"].iter().map(|s| s.parse().unwrap()).collect();
         assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
+            is_valid_normal(&card_values),
+            Some(NormalType {
                 start_rank: 12,
                 end_rank: 12,
                 suit_count: 1,
@@ -77,8 +77,8 @@ mod tests_for_is_valid_combination {
             .map(|s| s.parse().unwrap())
             .collect();
         assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
+            is_valid_normal(&card_values),
+            Some(NormalType {
                 start_rank: 10,
                 end_rank: 10,
                 suit_count: 7,
@@ -94,8 +94,8 @@ mod tests_for_is_valid_combination {
             .map(|s| s.parse().unwrap())
             .collect();
         assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
+            is_valid_normal(&card_values),
+            Some(NormalType {
                 start_rank: 10,
                 end_rank: 10,
                 suit_count: 3,
@@ -110,7 +110,7 @@ mod tests_for_is_valid_combination {
             .iter()
             .map(|s| s.parse().unwrap())
             .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
+        assert_eq!(is_valid_normal(&card_values), None);
     }
 
     #[test]
@@ -120,8 +120,8 @@ mod tests_for_is_valid_combination {
             .map(|s| s.parse().unwrap())
             .collect();
         assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
+            is_valid_normal(&card_values),
+            Some(NormalType {
                 start_rank: 7,
                 end_rank: 9,
                 suit_count: 1,
@@ -137,8 +137,8 @@ mod tests_for_is_valid_combination {
             .map(|s| s.parse().unwrap())
             .collect();
         assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
+            is_valid_normal(&card_values),
+            Some(NormalType {
                 start_rank: 7,
                 end_rank: 11,
                 suit_count: 1,
@@ -153,7 +153,7 @@ mod tests_for_is_valid_combination {
             .iter()
             .map(|s| s.parse().unwrap())
             .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
+        assert_eq!(is_valid_normal(&card_values), None);
     }
 
     #[test]
@@ -162,7 +162,7 @@ mod tests_for_is_valid_combination {
             .iter()
             .map(|s| s.parse().unwrap())
             .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
+        assert_eq!(is_valid_normal(&card_values), None);
     }
 
     #[test]
@@ -172,8 +172,8 @@ mod tests_for_is_valid_combination {
             .map(|s| s.parse().unwrap())
             .collect();
         assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
+            is_valid_normal(&card_values),
+            Some(NormalType {
                 start_rank: 7,
                 end_rank: 8,
                 suit_count: 2,
@@ -189,8 +189,8 @@ mod tests_for_is_valid_combination {
             .map(|s| s.parse().unwrap())
             .collect();
         assert_eq!(
-            is_valid_combination(&card_values),
-            Some(CombinationType {
+            is_valid_normal(&card_values),
+            Some(NormalType {
                 start_rank: 2,
                 end_rank: 3,
                 suit_count: 2,
@@ -205,7 +205,7 @@ mod tests_for_is_valid_combination {
             .iter()
             .map(|s| s.parse().unwrap())
             .collect();
-        assert_eq!(is_valid_combination(&card_values), None);
+        assert_eq!(is_valid_normal(&card_values), None);
     }
 }
 
@@ -331,9 +331,8 @@ mod tests_for_qr_code {
             ],
             current_player: Me,
             me_went_first: true,
-            last_trick: vec![],
-            last_trick_type: None,
-            current_start_order: 0,
+            last_combination_type: None,
+            next_order: 0,
         };
 
         game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
@@ -398,9 +397,8 @@ mod tests_for_qr_code {
             ],
             current_player: Me,
             me_went_first: true,
-            last_trick: vec![],
-            last_trick_type: None,
-            current_start_order: 0,
+            last_combination_type: None,
+            next_order: 0,
         };
 
         game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);

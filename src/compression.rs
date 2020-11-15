@@ -7,6 +7,64 @@ use num_bigint::BigUint;
 const GROUPING_ARRAY_BYTE_LEN: usize = (2 * (DECK_SIZE - HAGGIS_SIZE) + 7) / 8;
 const CARD_ORDER_BYTE_LEN: usize = 20;
 
+// Goal: represent a player's initial hand in as few bytes as possible.
+//
+// In Haggis, each player has 17 cards in their initial hand: 14 number cards
+// and 3 wildcards. The three wildcards are always the same, so we only need
+// to store the 14 number cards. These 14 cards come from a pool of 36 total
+// number cards in the game, meaning there are [36 choose 14] possible initial
+// hands (disregarding the other player and the Haggis). As long as we can
+// map the first [36 choose 14] natural numbers to a unique hand, we can store
+// the hand in log_2 (36 choose 14) bits, which is (rounding up) 32 bits.
+// What a convenient number!
+// We can map each number to a hand by sorting each possible hand and listing
+// them in order:
+//     Number              Sorted hand
+//     0                   0 1 2 3 ... 12 13
+//     1                   0 1 2 3 ... 12 14
+//     ...                 ...
+//     3796297199          22 23 24 25 ... 34 35
+// To get the number that corresponds to a hand H, we just need to count how
+// many possible hands come before H in this lexicographic ordering.
+//
+// Here's how to find this number:
+//
+// Let x be the first card of a sorted hand H. The 13 other cards in the
+// hand must be chosen from the 36 - x cards larger than x, so there are
+// [(36 - x) choose 13] possible hands that start with x.
+// How many hands are smaller than this hand H?
+// The hands that start with 0, 1, 2, ..., x - 1 must be smaller than H. That's
+// [36 choose 13] + [35 choose 13] + [34 choose 13] + ... + [36 - (x - 1) choose 13]
+// hands. Now let y be the second card of H. By the same logic as before, there
+// are [(36 - y) choose 12] possible hands that start with x then y.
+// Of the hands that start with x, those with a second card in the range (x, y)
+// exclusive must be smaller than H. Note that the second card can't be x or
+// smaller because the first card was x. So that's another
+// [36 - (x + 1) choose 12] + [36 - (x + 2) choose 12] + ... + [(36 - (y - 1)) choose 12]
+// hands. Then just follow this pattern for every remaining card in the hand.
+
+fn compress_hand(hand: &[usize]) {
+    let mut min_card_val = 0;
+    let mut num_remaining_cards = INIT_HAND_SIZE_WO_WILDCARD - 1;
+    for &card in hand {
+        for smaller_card_val in min_card_val..card {}
+        min_card_val = card + 1;
+        num_remaining_cards -= 1;
+    }
+}
+
+fn n_choose_k(n: usize, k: usize) -> u32 {
+    let n = n as u64;
+    let k = k as u64;
+    let mut numerator = 1;
+    let mut denominator = 1;
+    for i in 0..k {
+        numerator *= n - i;
+        denominator *= 1 + i;
+    }
+    (numerator / denominator) as u32
+}
+
 fn compress_card_order(card_order_goal: &[usize]) -> BigUint {
     assert!(card_order_goal.len() == DECK_SIZE - HAGGIS_SIZE);
     println!("from compress_card_order: {:?}", card_order_goal);
@@ -120,8 +178,8 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
     // u128 => u8[16]
     let mut prev_captured_by = None;
     let mut i: usize = 0;
-    for combination_idx in 0.. {
-        match cards_on_table.get(&combination_idx) {
+    for order in 0.. {
+        match cards_on_table.get(&order) {
             Some(combination) => {
                 let curr_captured_by = game.locations[combination[0]].captured_by();
                 if curr_captured_by != prev_captured_by {
@@ -140,8 +198,11 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
                 set_1_for_grouping_array(&mut grouping_array, i - 1, 0);
             }
             None => {
-                let last_combination_idx = combination_idx - 1;
-                let combination = &cards_on_table[&last_combination_idx];
+                if order == 0 {
+                    break;
+                }
+                let last_order = order - 1;
+                let combination = &cards_on_table[&last_order];
                 let curr_captured_by = game.locations[combination[0]].captured_by();
                 if curr_captured_by.is_some() {
                     set_1_for_grouping_array(&mut grouping_array, i - 1, 1);
@@ -217,9 +278,8 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
             Player::Opponent
         },
         me_went_first,
-        last_trick: Vec::new(),
-        last_trick_type: None,
-        current_start_order: 0,
+        last_combination_type: None,
+        next_order: 0,
     };
     for _ in 0..DECK_SIZE {
         //default is haggis
@@ -255,14 +315,11 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
         let is_last_card_of_combination_group =
             read_bit_from_grouping_array(&grouping_array, grouping_array_idx, 1);
         if is_last_card_of_combination {
-            let success = game.play_cards(combination);
-            if !success {
-                panic!("Play cards unsuccessful")
-            }
+            game.play_cards(combination);
             combination = Vec::new();
         }
         if is_last_card_of_combination_group {
-            game.pass();
+            game.play_cards(vec![]);
         }
     }
 
@@ -320,13 +377,6 @@ mod test {
                 .map(|card_id| card_id.0)
                 .collect::<Vec<_>>()
         );
-        println!(
-            "Last trick: {:?}",
-            game.last_trick
-                .iter()
-                .map(|card_id| card_id.0)
-                .collect::<Vec<_>>()
-        );
     }
 
     #[test]
@@ -380,16 +430,15 @@ mod test {
             ],
             current_player: Me,
             me_went_first: true,
-            last_trick: vec![],
-            last_trick_type: None,
-            current_start_order: 0,
+            last_combination_type: None,
+            next_order: 0,
         };
 
         game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
 
         print_game(&game);
 
-        game.pass();
+        game.play_cards(vec![]);
 
         print_game(&game);
 
@@ -453,9 +502,8 @@ mod test {
             ],
             current_player: Me,
             me_went_first: true,
-            last_trick: vec![],
-            last_trick_type: None,
-            current_start_order: 0,
+            last_combination_type: None,
+            next_order: 0,
         };
 
         game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
@@ -464,7 +512,7 @@ mod test {
 
         println!("Decoding and encoding worked without passing!");
 
-        game.pass();
+        game.play_cards(vec![]);
 
         assert_eq!(game, decode_game(&encode_game(&game)));
     }

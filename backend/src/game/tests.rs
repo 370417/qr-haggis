@@ -404,6 +404,12 @@ mod tests_for_qr_code {
         game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
         let game_copy = game.clone();
 
+        println!(
+            "game size: {}, location size: {}",
+            std::mem::size_of::<Game>(),
+            std::mem::size_of::<Location>()
+        );
+
         assert_eq!(game.current_player, Player::Opponent);
         game.switch_perspective();
         assert_eq!(game.current_player, Player::Me);

@@ -1,7 +1,8 @@
 const path = require('path');
+const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
-    entry: './src/index.ts',
+    entry: './src/index.tsx',
     module: {
         rules: [
             {
@@ -11,6 +12,13 @@ module.exports = {
             },
         ],
     },
+    plugins: [
+        new CopyPlugin({
+            patterns: [
+                { from: 'static', to: path.join(__dirname, 'dist') },
+            ],
+        }),
+    ],
     devServer: {
         contentBase: path.join(__dirname, 'dist'),
         compress: true,

@@ -6,7 +6,6 @@
         "strict": true,
         "forceConsistentCasingInFileNames": true,
         "moduleResolution": "node",
-        "noEmit": true,
         "jsx": "react",
         "outDir": "./dist/",
         "noImplicitAny": true,

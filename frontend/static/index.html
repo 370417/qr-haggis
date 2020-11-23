@@ -4,6 +4,66 @@
 <head>
     <title>Haggis</title>
     <meta charset="utf8" />
+    <style>
+        #card_grid {
+            position: relative;
+        }
+
+        .card {
+            width: 2em;
+            height: 2em;
+            border-radius: 1em;
+            border: 1px solid #000;
+        }
+
+        #normal_cards {
+            display: grid;
+            grid-template-columns: repeat(9, 3em);
+            grid-template-rows: repeat(4, 3em);
+            position: absolute;
+            top: 3em;
+            left: 3em;
+            justify-items: center;
+            align-items: center;
+        }
+
+        #ranks {
+            display: grid;
+            grid-template-columns: repeat(10, 3em);
+        }
+
+        #suits {
+            display: grid;
+            grid-template-rows: repeat(4, 3em);
+        }
+
+        #ranks span,
+        #suits span {
+            width: 3em;
+            height: 3em;
+            text-align: center;
+            line-height: 3em;
+        }
+
+        #my_wildcards,
+        #opponent_wildcards {
+            display: grid;
+            grid-template-columns: repeat(3, 3em);
+            grid-template-rows: repeat(4, 3em);
+            position: absolute;
+            top: 15em;
+            justify-items: center;
+            align-items: center;
+        }
+
+        #my_wildcards {
+            left: 3em;
+        }
+
+        #opponent_wildcards {
+            left: 21em;
+        }
+    </style>
 </head>
 
 <body>

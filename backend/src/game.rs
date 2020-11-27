@@ -6,6 +6,7 @@ use image::{DynamicImage, ImageBuffer, Luma};
 use qrcode::QrCode;
 use rand::prelude::*;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 pub mod constant {
     pub const HAGGIS_SIZE: usize = 8;
@@ -81,18 +82,85 @@ impl NormalType {
     fn card_count(&self) -> usize {
         self.suit_count * self.rank_count() + self.num_extra_wildcards
     }
+
+    // Checks if self is compatible with and larger than other.
+    // If that is true, returns the disambiguated type of the larger normal combination, which
+    // will always be self.
+    //
+    // When comparing two normal combinations, we can only order them if they share
+    // the same type. Some normal combinations can have ambiguous types:
+    //
+    // 1x1 regular, 2 wild => 3 total
+    // 1x1 regular, 3 wild => 4 total
+    // 2x1 regular, 2 wild => 4 total
+    // 1x2 regular, 2 wild => 4 total
+    // 3x1 regular, 3 wild => 6 total
+    // 1x3 regular, 3 wild => 6 total
+    // 2x2 regular, 2 wild => 6 total
+    // 3x3 regular, 3 wild => 12 total
+    //
+    // (2x1 means the normal combination spans 2 ranks and 1 suit)
+    // when both self and other are ambiguious, only (3x1 regular, 3 wild => 6 total)
+    // and (1x3 regular, 3 wild => 6 total) don't have compatibility, but this case can be caught
+    // by the existing test.
+    fn has_higher_rank_than(&self, other: &Self) -> Option<NormalType> {
+        if self.card_count() != other.card_count() {
+            return None;
+        }
+
+        let combined_suit_count = self.suit_count.max(other.suit_count);
+        let combined_rank_count = self.rank_count().max(other.rank_count());
+
+        // If the combined rectangle area is larger than the number of cards, we can't
+        // possibly fill it into a valid normal combination.
+        if combined_suit_count * combined_rank_count <= self.card_count()
+            && self.start_rank > other.start_rank
+        {
+            Some(NormalType {
+                start_rank: self.start_rank,
+                end_rank: self.start_rank + combined_rank_count - 1,
+                suit_count: combined_suit_count,
+                num_extra_wildcards: self.card_count() - combined_suit_count * combined_rank_count,
+            })
+        } else {
+            None
+        }
+    }
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
 pub struct Game {
     /// The location of a card with id x is locations[x].
+    #[wasm_bindgen(skip)]
     pub locations: Vec<Location>,
+    #[wasm_bindgen(skip)]
     pub current_player: Player,
+    #[wasm_bindgen(skip)]
     pub me_went_first: bool,
     /// Type (including disambiguations) of the last combination played
+    #[wasm_bindgen(skip)]
     pub last_combination_type: Option<CombinationType>,
     /// The order that the next card combination will have
+    #[wasm_bindgen(skip)]
     pub next_order: usize,
+}
+#[wasm_bindgen]
+pub enum CardFrontendState {
+    Unknown,
+    InMyHand,
+    JustPlayed,
+    ThisCombinationGroup,
+    CapturedByMe,
+    CapturedByOpponent,
+}
+
+#[wasm_bindgen]
+pub enum GameStage {
+    BeforeGame,
+    Play,
+    Wait,
+    GameOver,
 }
 
 #[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
@@ -153,6 +221,216 @@ impl CardId {
                 rank: 11 + (self.0 % 3),
             }
         }
+    }
+}
+
+#[wasm_bindgen]
+impl Game {
+    pub fn new() -> Self {
+        Game::create_state(None)
+    }
+
+    fn from_qr_code() {}
+
+    // card_ids can be empty
+    // Returns true on success, false on failure
+    // Assumption: current_player == Player::Me
+    pub fn can_play_cards(&mut self, card_ids: Vec<usize>) -> bool {
+        if card_ids.is_empty() {
+            return true;
+        }
+
+        let card_values = card_ids
+            .into_iter()
+            .map(|id| CardId(id).to_value())
+            .collect();
+
+        let current_combination_type = if let Some(bomb_rank) = is_bomb(&card_values) {
+            Some(CombinationType::Bomb(bomb_rank))
+        } else {
+            is_valid_normal(&card_values).map(|normal_type| CombinationType::Normal(normal_type))
+        };
+
+        use CombinationType::*;
+        match (&self.last_combination_type, &current_combination_type) {
+            (_, None) => false,
+            (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
+                if current_bomb <= last_bomb {
+                    false
+                } else {
+                    true
+                }
+            }
+            (Some(Bomb(_)), Some(Normal(_))) => false,
+            (Some(Normal(last_normal)), Some(Normal(current_normal))) => {
+                if let Some(_) = current_normal.has_higher_rank_than(last_normal) {
+                    true
+                } else {
+                    false
+                }
+            }
+            _ => true,
+        }
+    }
+
+    // We pass if card_ids is empty
+    pub fn play_cards(&mut self, card_ids: Vec<usize>) {
+        if card_ids.is_empty() {
+            self.capture_table();
+        } else {
+            let card_values = card_ids.iter().map(|&id| CardId(id).to_value()).collect();
+
+            let current_combination_type = if let Some(bomb_rank) = is_bomb(&card_values) {
+                Some(CombinationType::Bomb(bomb_rank))
+            } else {
+                is_valid_normal(&card_values)
+                    .map(|normal_type| CombinationType::Normal(normal_type))
+            };
+
+            use CombinationType::*;
+            self.last_combination_type =
+                match (&self.last_combination_type, &current_combination_type) {
+                    (_, None) => panic!(),
+                    (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
+                        if current_bomb <= last_bomb {
+                            panic!();
+                        } else {
+                            current_combination_type
+                        }
+                    }
+                    (Some(Bomb(_)), Some(Normal(_))) => panic!(),
+                    (Some(Normal(last_normal)), Some(Normal(current_normal))) => {
+                        if let Some(new_normal_type) =
+                            current_normal.has_higher_rank_than(last_normal)
+                        {
+                            Some(Normal(new_normal_type))
+                        } else {
+                            eprintln!(
+                                "last_normal {:?}, current_normal {:?}",
+                                last_normal, current_normal
+                            );
+                            panic!();
+                        }
+                    }
+                    _ => current_combination_type,
+                };
+
+            // move the cards to table
+            for &card_id in &card_ids {
+                self.locations[card_id] = Location::Table {
+                    order: self.next_order,
+                    captured_by: None,
+                };
+            }
+            self.next_order += 1;
+        }
+
+        // change the current player
+        self.current_player = self.current_player.other();
+    }
+
+    fn game_stage(&self) -> GameStage {
+        if self.is_game_over() {
+            return GameStage::GameOver;
+        }
+        if self.current_player == Player::Me {
+            return GameStage::Play;
+        } else {
+            return GameStage::Wait;
+        }
+    }
+
+    fn card_frontend_state(&self, card_id: usize) -> CardFrontendState {
+        match self.locations[card_id] {
+            Location::Haggis | Location::Hand(Player::Opponent) => CardFrontendState::Unknown,
+            Location::Hand(Player::Me) => CardFrontendState::InMyHand,
+            Location::Table {
+                captured_by: None,
+                order,
+            } => {
+                if order + 1 == self.next_order {
+                    CardFrontendState::JustPlayed
+                } else {
+                    CardFrontendState::ThisCombinationGroup
+                }
+            }
+            Location::Table {
+                captured_by: Some(Player::Me),
+                ..
+            } => CardFrontendState::CapturedByMe,
+            Location::Table {
+                captured_by: Some(Player::Opponent),
+                ..
+            } => CardFrontendState::CapturedByOpponent,
+        }
+    }
+
+    /// return (my_score, opponent_score) based on the scores so far
+    pub fn calculate_score(&mut self) -> Box<[usize]> {
+        let mut my_card_count = 0;
+        let mut opponent_card_count = 0;
+
+        for location in self.locations.iter() {
+            match location {
+                Location::Hand(Player::Me) => my_card_count += 1,
+                Location::Hand(Player::Opponent) => opponent_card_count += 1,
+                _ => {}
+            };
+        }
+
+        if my_card_count == 0 || opponent_card_count == 0 {
+            // Capture the last combination group
+            // Because the winner of the last combination group was the last
+            // person to play, self.play_cards will switch the current player
+            // to their opponent, so self.capture_table will assign cards correctly
+            self.capture_table();
+        }
+        let mut my_score = 0;
+        let mut opponent_score = 0;
+
+        let mut winner_of_hand_bonus = 0;
+
+        // The winner of the hand scores 5 points for each card in her opponent's hand.
+        // Remember, the wild cards count as part of the hand.
+        winner_of_hand_bonus += 5 * (my_card_count + opponent_card_count);
+
+        for (i, location) in self.locations.iter().enumerate() {
+            let card_id = CardId(i);
+            match location {
+                // All point  cards (i.e., any 3, 5, 7, 9, J, Q, or K) captured
+                // are  scored by the capturing player.
+                Location::Table {
+                    captured_by: Some(Player::Me),
+                    ..
+                } => {
+                    my_score += card_id.to_value().point_value();
+                }
+                Location::Table {
+                    captured_by: Some(Player::Opponent),
+                    ..
+                } => {
+                    opponent_score += card_id.to_value().point_value();
+                }
+                // Point cards left in the opponent's hand and any point cards found in the
+                // Haggis are scored by the player who won the hand.
+                Location::Hand(..) | Location::Haggis => {
+                    winner_of_hand_bonus += card_id.to_value().point_value();
+                }
+                Location::Table {
+                    captured_by: None, ..
+                } => {
+                    // This can happen if the game is still going
+                }
+            }
+        }
+
+        if my_card_count == 0 {
+            my_score += winner_of_hand_bonus;
+        } else if opponent_card_count == 0 {
+            opponent_score += winner_of_hand_bonus;
+        }
+
+        Box::new([my_score, opponent_score])
     }
 }
 
@@ -243,27 +521,7 @@ impl Game {
         hand
     }
 
-    /// Return the non-captured cards of the table
-    pub fn get_table(&self) -> HashMap<usize, Vec<CardId>> {
-        let mut non_captured_combinations: HashMap<usize, Vec<CardId>> = HashMap::new();
-
-        for (i, location) in self.locations.iter().enumerate() {
-            if let Location::Table {
-                captured_by: None,
-                order,
-            } = location
-            {
-                non_captured_combinations
-                    .entry(*order)
-                    .or_default()
-                    .push(CardId(i));
-            }
-        }
-        non_captured_combinations
-    }
-
-    /// If game is over, return (my_score, opponent_score)
-    pub fn is_game_over(&mut self) -> Option<(usize, usize)> {
+    pub fn is_game_over(&self) -> bool {
         let mut my_card_count = 0;
         let mut opponent_card_count = 0;
 
@@ -275,74 +533,7 @@ impl Game {
             };
         }
 
-        if my_card_count == 0 || opponent_card_count == 0 {
-            // Capture the last combination group
-            // Because the winner of the last combination group was the last
-            // person to play, self.play_cards will switch the current player
-            // to their opponent, so self.capture_table will assign cards correctly
-            self.capture_table();
-
-            let mut my_score = 0;
-            let mut opponent_score = 0;
-
-            let mut winner_of_hand_bonus = 0;
-
-            // The winner of the hand scores 5 points for each card in her opponent's hand.
-            // Remember, the wild cards count as part of the hand.
-            winner_of_hand_bonus += 5 * (my_card_count + opponent_card_count);
-
-            for (i, location) in self.locations.iter().enumerate() {
-                let card_id = CardId(i);
-                match location {
-                    // All point  cards (i.e., any 3, 5, 7, 9, J, Q, or K) captured
-                    // are  scored by the capturing player.
-                    Location::Table {
-                        captured_by: Some(Player::Me),
-                        ..
-                    } => {
-                        my_score += card_id.to_value().point_value();
-                    }
-                    Location::Table {
-                        captured_by: Some(Player::Opponent),
-                        ..
-                    } => {
-                        opponent_score += card_id.to_value().point_value();
-                    }
-                    // Point cards left in the opponent's hand and any point cards found in the
-                    // Haggis are scored by the player who won the hand.
-                    Location::Hand(..) | Location::Haggis => {
-                        winner_of_hand_bonus += card_id.to_value().point_value();
-                    }
-                    Location::Table {
-                        captured_by: None, ..
-                    } => {
-                        // The last set of cards should be captured by the winner
-                        todo!()
-                    }
-                }
-            }
-
-            if my_card_count == 0 {
-                my_score += winner_of_hand_bonus;
-            } else {
-                opponent_score += winner_of_hand_bonus;
-            }
-
-            Some((my_score, opponent_score))
-        } else {
-            None
-        }
-    }
-
-    pub fn get_opponent_num_of_card(&self) -> usize {
-        let mut opponent_num_of_card: usize = 0;
-        for location in self.locations.iter() {
-            match location {
-                Location::Hand(Player::Opponent) => opponent_num_of_card += 1,
-                _ => {}
-            }
-        }
-        opponent_num_of_card
+        my_card_count == 0 || opponent_card_count == 0
     }
 
     /// Capture the cards on the table without changing whose turn it is
@@ -363,100 +554,6 @@ impl Game {
         }
 
         self.last_combination_type = None;
-    }
-
-    // card_ids can be empty
-    // Returns true on success, false on failure
-    // Assumption: current_player == Player::Me
-    pub fn can_play_cards(&mut self, card_ids: Vec<CardId>) -> bool {
-        if card_ids.is_empty() {
-            return true;
-        }
-
-        let card_values = card_ids.iter().map(|id| id.to_value()).collect();
-
-        let current_combination_type = if let Some(bomb_rank) = is_bomb(&card_values) {
-            Some(CombinationType::Bomb(bomb_rank))
-        } else {
-            is_valid_normal(&card_values).map(|normal_type| CombinationType::Normal(normal_type))
-        };
-
-        use CombinationType::*;
-        match (&self.last_combination_type, &current_combination_type) {
-            (_, None) => false,
-            (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
-                if current_bomb <= last_bomb {
-                    false
-                } else {
-                    true
-                }
-            }
-            (Some(Bomb(_)), Some(Normal(_))) => false,
-            (Some(Normal(last_normal)), Some(Normal(current_normal))) => {
-                if let Some(_) = current_normal.has_higher_rank_than(last_normal) {
-                    true
-                } else {
-                    false
-                }
-            }
-            _ => true,
-        }
-    }
-
-    // We pass if card_ids is empty
-    pub fn play_cards(&mut self, card_ids: Vec<CardId>) {
-        if card_ids.is_empty() {
-            self.capture_table();
-        } else {
-            let card_values = card_ids.iter().map(|id| id.to_value()).collect();
-
-            let current_combination_type = if let Some(bomb_rank) = is_bomb(&card_values) {
-                Some(CombinationType::Bomb(bomb_rank))
-            } else {
-                is_valid_normal(&card_values)
-                    .map(|normal_type| CombinationType::Normal(normal_type))
-            };
-
-            use CombinationType::*;
-            self.last_combination_type =
-                match (&self.last_combination_type, &current_combination_type) {
-                    (_, None) => panic!(),
-                    (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
-                        if current_bomb <= last_bomb {
-                            panic!();
-                        } else {
-                            current_combination_type
-                        }
-                    }
-                    (Some(Bomb(_)), Some(Normal(_))) => panic!(),
-                    (Some(Normal(last_normal)), Some(Normal(current_normal))) => {
-                        if let Some(new_normal_type) =
-                            current_normal.has_higher_rank_than(last_normal)
-                        {
-                            Some(Normal(new_normal_type))
-                        } else {
-                            eprintln!(
-                                "last_normal {:?}, current_normal {:?}",
-                                last_normal, current_normal
-                            );
-                            panic!();
-                        }
-                    }
-                    _ => current_combination_type,
-                };
-
-            // move the cards to table
-            for card_id in card_ids.iter() {
-                self.locations[card_id.0] = Location::Table {
-                    order: self.next_order,
-                    captured_by: None,
-                };
-            }
-            self.next_order += 1;
-        }
-
-        // change the current player
-        self.current_player = self.current_player.other();
     }
 
     // Swap Me and Opponent
@@ -630,51 +727,5 @@ fn is_bomb(card_values: &Vec<CardValue>) -> Option<usize> {
             0b11100000000000 => Some(4),
             _ => None,
         };
-    }
-}
-
-impl NormalType {
-    // Checks if self is compatible with and larger than other.
-    // If that is true, returns the disambiguated type of the larger normal combination, which
-    // will always be self.
-    //
-    // When comparing two normal combinations, we can only order them if they share
-    // the same type. Some normal combinations can have ambiguous types:
-    //
-    // 1x1 regular, 2 wild => 3 total
-    // 1x1 regular, 3 wild => 4 total
-    // 2x1 regular, 2 wild => 4 total
-    // 1x2 regular, 2 wild => 4 total
-    // 3x1 regular, 3 wild => 6 total
-    // 1x3 regular, 3 wild => 6 total
-    // 2x2 regular, 2 wild => 6 total
-    // 3x3 regular, 3 wild => 12 total
-    //
-    // (2x1 means the normal combination spans 2 ranks and 1 suit)
-    // when both self and other are ambiguious, only (3x1 regular, 3 wild => 6 total)
-    // and (1x3 regular, 3 wild => 6 total) don't have compatibility, but this case can be caught
-    // by the existing test.
-    fn has_higher_rank_than(&self, other: &Self) -> Option<NormalType> {
-        if self.card_count() != other.card_count() {
-            return None;
-        }
-
-        let combined_suit_count = self.suit_count.max(other.suit_count);
-        let combined_rank_count = self.rank_count().max(other.rank_count());
-
-        // If the combined rectangle area is larger than the number of cards, we can't
-        // possibly fill it into a valid normal combination.
-        if combined_suit_count * combined_rank_count <= self.card_count()
-            && self.start_rank > other.start_rank
-        {
-            Some(NormalType {
-                start_rank: self.start_rank,
-                end_rank: self.start_rank + combined_rank_count - 1,
-                suit_count: combined_suit_count,
-                num_extra_wildcards: self.card_count() - combined_suit_count * combined_rank_count,
-            })
-        } else {
-            None
-        }
     }
 }

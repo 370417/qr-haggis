@@ -1,7 +1,7 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 
-type Stage = "before game" | "play" | "wait" | "game over";
+// type Stage = "before game" | "play" | "wait" | "game over";
 
 type AppState = {
     stage: Stage,
@@ -69,7 +69,7 @@ class CardGrid extends React.Component<CardGridProps> {
     }
 }
 
-type Location = "unknown" | "my_hand" | "table_just_played" | "table" | "captured_by_me" | "captured_by_opponent";
+// type Location = "unknown" | "my_hand" | "table_just_played" | "table" | "captured_by_me" | "captured_by_opponent";
 
 type CardProps = {
     cardId: number,

@@ -306,9 +306,9 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
     //using grouping array to parse cards on the table, also replay the game at the same time
     let num_cards_on_table = DECK_SIZE - HAGGIS_SIZE - net_hand_size;
 
-    let mut combination: Vec<CardId> = Vec::new();
+    let mut combination = Vec::new();
     for grouping_array_idx in 0..num_cards_on_table {
-        let card_id = CardId(card_order[net_hand_size + grouping_array_idx]);
+        let card_id = card_order[net_hand_size + grouping_array_idx];
         combination.push(card_id);
         let is_last_card_of_combination =
             read_bit_from_grouping_array(&grouping_array, grouping_array_idx, 0);
@@ -434,7 +434,7 @@ mod test {
             next_order: 0,
         };
 
-        game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
+        game.play_cards(vec![11, 12, 13]);
 
         print_game(&game);
 
@@ -442,8 +442,8 @@ mod test {
 
         print_game(&game);
 
-        game.play_cards(vec![CardId(10)]);
-        game.play_cards(vec![CardId(6)]);
+        game.play_cards(vec![10]);
+        game.play_cards(vec![6]);
 
         print_game(&game);
 
@@ -506,7 +506,7 @@ mod test {
             next_order: 0,
         };
 
-        game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
+        game.play_cards(vec![11, 12, 13]);
 
         assert_eq!(game, decode_game(&encode_game(&game)));
 

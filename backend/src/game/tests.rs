@@ -335,7 +335,7 @@ mod tests_for_qr_code {
             next_order: 0,
         };
 
-        game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
+        game.play_cards(vec![11, 12, 13]);
 
         let mut game_from_qr_code = Game::create_state(None);
 
@@ -401,7 +401,7 @@ mod tests_for_qr_code {
             next_order: 0,
         };
 
-        game.play_cards(vec![CardId(11), CardId(12), CardId(13)]);
+        game.play_cards(vec![11, 12, 13]);
         let game_copy = game.clone();
 
         println!(

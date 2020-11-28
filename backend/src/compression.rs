@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-use crate::game::{constant::*, CardId};
-use crate::game::{Game, Location, Player};
+use crate::game::{constant::*, location::Location, player::Player, Game};
 use num_bigint::BigUint;
 
 const GROUPING_ARRAY_BYTE_LEN: usize = (2 * (DECK_SIZE - HAGGIS_SIZE) + 7) / 8;

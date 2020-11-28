@@ -1,25 +1,19 @@
-use std::collections::HashMap;
-
 use crate::compression::{decode_game, encode_game};
+use card::*;
+use combination_type::*;
 use constant::*;
 use image::{DynamicImage, ImageBuffer, Luma};
+use location::Location;
+use player::Player;
 use qrcode::QrCode;
 use rand::prelude::*;
-use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-pub mod constant {
-    pub const HAGGIS_SIZE: usize = 8;
-    pub const NUM_WILDCARDS_PER_PLAYER: usize = 3;
-    pub const NUM_PLAYERS: usize = 2;
-    pub const MIN_RANK: usize = 2;
-    pub const MAX_RANK: usize = 10;
-    pub const NUM_RANKS: usize = (MAX_RANK - MIN_RANK + 1);
-    pub const NUM_SUITS: usize = 4;
-    pub const NUM_NORMAL: usize = NUM_RANKS * NUM_SUITS;
-    pub const DECK_SIZE: usize = (NUM_SUITS * NUM_RANKS) + (NUM_WILDCARDS_PER_PLAYER * NUM_PLAYERS);
-    pub const INIT_HAND_SIZE_WO_WILDCARD: usize = (NUM_NORMAL - HAGGIS_SIZE) / 2;
-}
+pub mod card;
+mod combination_type;
+pub mod constant;
+pub mod location;
+pub mod player;
 
 #[cfg(test)]
 mod tests;
@@ -29,107 +23,8 @@ mod tests;
 // - CombinationGroup: I pass, you pass
 // - Game (called hand in the rulebook): I empty my hand, you empty your hand
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub enum Player {
-    Me,
-    Opponent,
-}
-
-impl Player {
-    pub fn other(self) -> Self {
-        match self {
-            Player::Me => Player::Opponent,
-            Player::Opponent => Player::Me,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
-pub enum Location {
-    Haggis,
-    Hand(Player),
-    /// Table is the location of all cards that players have played.
-    /// Order is the number of combinations played (across all combination groups) before this card.
-    /// Order will have the same value for all the cards in a combination.
-    Table {
-        captured_by: Option<Player>,
-        order: usize,
-    },
-}
-
-impl Location {
-    pub fn captured_by(&self) -> Option<Player> {
-        match self {
-            Location::Table { captured_by, .. } => *captured_by,
-            _ => panic!(),
-        }
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
-pub struct NormalType {
-    start_rank: usize,
-    end_rank: usize,
-    suit_count: usize,
-    num_extra_wildcards: usize,
-}
-
-impl NormalType {
-    fn rank_count(&self) -> usize {
-        self.end_rank - self.start_rank + 1
-    }
-
-    fn card_count(&self) -> usize {
-        self.suit_count * self.rank_count() + self.num_extra_wildcards
-    }
-
-    // Checks if self is compatible with and larger than other.
-    // If that is true, returns the disambiguated type of the larger normal combination, which
-    // will always be self.
-    //
-    // When comparing two normal combinations, we can only order them if they share
-    // the same type. Some normal combinations can have ambiguous types:
-    //
-    // 1x1 regular, 2 wild => 3 total
-    // 1x1 regular, 3 wild => 4 total
-    // 2x1 regular, 2 wild => 4 total
-    // 1x2 regular, 2 wild => 4 total
-    // 3x1 regular, 3 wild => 6 total
-    // 1x3 regular, 3 wild => 6 total
-    // 2x2 regular, 2 wild => 6 total
-    // 3x3 regular, 3 wild => 12 total
-    //
-    // (2x1 means the normal combination spans 2 ranks and 1 suit)
-    // when both self and other are ambiguious, only (3x1 regular, 3 wild => 6 total)
-    // and (1x3 regular, 3 wild => 6 total) don't have compatibility, but this case can be caught
-    // by the existing test.
-    fn has_higher_rank_than(&self, other: &Self) -> Option<NormalType> {
-        if self.card_count() != other.card_count() {
-            return None;
-        }
-
-        let combined_suit_count = self.suit_count.max(other.suit_count);
-        let combined_rank_count = self.rank_count().max(other.rank_count());
-
-        // If the combined rectangle area is larger than the number of cards, we can't
-        // possibly fill it into a valid normal combination.
-        if combined_suit_count * combined_rank_count <= self.card_count()
-            && self.start_rank > other.start_rank
-        {
-            Some(NormalType {
-                start_rank: self.start_rank,
-                end_rank: self.start_rank + combined_rank_count - 1,
-                suit_count: combined_suit_count,
-                num_extra_wildcards: self.card_count() - combined_suit_count * combined_rank_count,
-            })
-        } else {
-            None
-        }
-    }
-}
-
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Game {
     /// The location of a card with id x is locations[x].
     #[wasm_bindgen(skip)]
@@ -161,67 +56,6 @@ pub enum GameStage {
     Play,
     Wait,
     GameOver,
-}
-
-#[derive(Serialize, Deserialize, Eq, PartialEq, Debug, Clone)]
-pub enum CombinationType {
-    Bomb(usize),
-    Normal(NormalType),
-}
-
-#[derive(Serialize, Deserialize)]
-enum CardValue {
-    Normal {
-        /// Rank is in the range 2..=10
-        rank: usize,
-        /// Suit is in the range 0..4
-        suit: usize,
-    },
-    Wildcard {
-        /// Wildcard rank is in the range 11..=13
-        rank: usize,
-    },
-}
-
-impl CardValue {
-    /// How many points this card value scores at the end of a game.
-    fn point_value(&self) -> usize {
-        match self {
-            Self::Normal { rank, .. } => rank % 2,
-            Self::Wildcard { rank: 11 } => 2,
-            Self::Wildcard { rank: 12 } => 3,
-            Self::Wildcard { rank: 13 } => 5,
-            _ => panic!("Invalid wildcard rank"),
-        }
-    }
-
-    fn rank(&self) -> usize {
-        match self {
-            CardValue::Normal { rank, .. } => *rank,
-            CardValue::Wildcard { rank } => *rank,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
-pub struct CardId(pub usize);
-
-impl CardId {
-    /// CardIds: 0  1  2  ...   8  9  ...  35 36 37 38 39 40 41
-    /// Ranks:   2  3  4  ...  10  2  ...  10  J  Q  K  J  Q  K
-    /// Suits:   0  0  0  ...   0  1  ...   3
-    fn to_value(self) -> CardValue {
-        if self.0 < NUM_NORMAL {
-            CardValue::Normal {
-                rank: 2 + (self.0 % NUM_RANKS),
-                suit: self.0 / NUM_RANKS,
-            }
-        } else {
-            CardValue::Wildcard {
-                rank: 11 + (self.0 % 3),
-            }
-        }
-    }
 }
 
 #[wasm_bindgen]
@@ -570,162 +404,5 @@ impl Game {
         }
         self.current_player = self.current_player.other();
         self.me_went_first = !self.me_went_first;
-    }
-}
-
-pub struct SuitSet([usize; NUM_SUITS]);
-
-impl SuitSet {
-    fn new() -> Self {
-        SuitSet([0; NUM_SUITS])
-    }
-
-    fn insert(&mut self, suit: usize) {
-        self.0[suit] = 1;
-    }
-
-    fn len(&self) -> usize {
-        self.0.iter().sum()
-    }
-}
-
-/// Preassumption: card_values does not represent a bomb
-fn is_valid_normal(card_values: &Vec<CardValue>) -> Option<NormalType> {
-    if card_values.is_empty() {
-        return None;
-    }
-
-    if card_values.len() == 1 {
-        return Some(NormalType {
-            start_rank: card_values[0].rank(),
-            end_rank: card_values[0].rank(),
-            suit_count: 1,
-            num_extra_wildcards: 0,
-        });
-    }
-
-    let mut smallest_rank = MAX_RANK + 1;
-    let mut largest_rank = MIN_RANK - 1;
-    let mut suits = SuitSet::new();
-    let mut num_normal_cards: usize = 0;
-    for value in card_values {
-        if let CardValue::Normal { rank, suit } = value {
-            num_normal_cards += 1;
-            smallest_rank = smallest_rank.min(*rank);
-            largest_rank = largest_rank.max(*rank);
-            suits.insert(*suit);
-        }
-    }
-
-    // smallest_rank > largest_rank will happen if all the cards were wildcards.
-    // Without this check, number_of_ranks can underflow.
-    assert!(smallest_rank <= largest_rank);
-
-    let number_of_ranks = largest_rank - smallest_rank + 1;
-    let min_normal_size = number_of_ranks * suits.len();
-    let num_required_wildcards = min_normal_size - num_normal_cards;
-    let num_wildcards = card_values.len() - num_normal_cards;
-
-    if card_values.len() == 2 && suits.len() == 1 {
-        if num_wildcards == 1 {
-            return Some(NormalType {
-                start_rank: smallest_rank,
-                end_rank: largest_rank,
-                suit_count: 2,
-                num_extra_wildcards: 0,
-            });
-        } else {
-            return None;
-        }
-    }
-
-    if num_required_wildcards > num_wildcards {
-        None
-    } else {
-        let num_extra_wildcards = num_wildcards - num_required_wildcards;
-
-        match (
-            num_extra_wildcards % suits.len() == 0,
-            num_extra_wildcards % number_of_ranks == 0,
-        ) {
-            // The number of extra wildcards doesn't fit an edge
-            (false, false) => None,
-            // If we can add a vertical line (eg make the sequence longer by adding another rank)
-            (true, false) => Some(NormalType {
-                start_rank: smallest_rank,
-                end_rank: largest_rank + num_extra_wildcards / suits.len(),
-                suit_count: suits.len(),
-                num_extra_wildcards: 0,
-            }),
-            // If we can add a horizontal line (eg make the set bigger by adding another suit)
-            (false, true) => Some(NormalType {
-                start_rank: smallest_rank,
-                end_rank: largest_rank,
-                suit_count: suits.len() + num_extra_wildcards / number_of_ranks,
-                num_extra_wildcards: 0,
-            }),
-            // We can add either type of line, so leave it ambiguous
-            (true, true) => Some(NormalType {
-                start_rank: smallest_rank,
-                end_rank: largest_rank,
-                suit_count: suits.len(),
-                num_extra_wildcards,
-            }),
-        }
-    }
-}
-
-// 0:    3-5-7-9 (these 4 ranks in 4 different suits, no wild cards)
-// 1:    J-Q
-// 2:    J-K
-// 3:    Q-K
-// 4:    J-Q-K
-// 5:    3-5-7-9 (these 4 ranks in one suit, no wild cards)
-// None: not a bomb
-fn is_bomb(card_values: &Vec<CardValue>) -> Option<usize> {
-    if card_values.len() == 4 {
-        let mut rank_bit_mask = 0;
-        for card_value in card_values {
-            let rank = card_value.rank();
-            rank_bit_mask |= 1 << rank;
-        }
-        if rank_bit_mask == 0b1010101000 {
-            // is 3-5-7-9
-            let mut suit_bit_mask = 0;
-            for i in 0..4 {
-                let suit = match card_values[i] {
-                    CardValue::Normal { suit, .. } => suit,
-                    _ => panic!("Should never reach this line"),
-                };
-                suit_bit_mask |= 1 << suit;
-            }
-            if suit_bit_mask == 0b1111 {
-                return Some(0);
-            } else if suit_bit_mask == 0b1
-                || suit_bit_mask == 0b10
-                || suit_bit_mask == 0b100
-                || suit_bit_mask == 0b1000
-            {
-                return Some(5);
-            } else {
-                return None;
-            }
-        } else {
-            return None;
-        }
-    } else {
-        let mut rank_bit_mask = 0;
-        for card_value in card_values.iter() {
-            let rank = card_value.rank();
-            rank_bit_mask |= 1 << rank;
-        }
-        println!("{}", rank_bit_mask);
-        return match rank_bit_mask {
-            0b01100000000000 => Some(1),
-            0b10100000000000 => Some(2),
-            0b11000000000000 => Some(3),
-            0b11100000000000 => Some(4),
-            _ => None,
-        };
     }
 }

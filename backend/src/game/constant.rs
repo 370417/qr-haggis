@@ -1,0 +1,10 @@
+pub const HAGGIS_SIZE: usize = 8;
+pub const NUM_WILDCARDS_PER_PLAYER: usize = 3;
+pub const NUM_PLAYERS: usize = 2;
+pub const MIN_RANK: usize = 2;
+pub const MAX_RANK: usize = 10;
+pub const NUM_RANKS: usize = (MAX_RANK - MIN_RANK + 1);
+pub const NUM_SUITS: usize = 4;
+pub const NUM_NORMAL: usize = NUM_RANKS * NUM_SUITS;
+pub const DECK_SIZE: usize = (NUM_SUITS * NUM_RANKS) + (NUM_WILDCARDS_PER_PLAYER * NUM_PLAYERS);
+pub const INIT_HAND_SIZE_WO_WILDCARD: usize = (NUM_NORMAL - HAGGIS_SIZE) / 2;

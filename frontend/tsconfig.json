@@ -1,7 +1,8 @@
 {
     "compilerOptions": {
         "lib": [
-            "DOM"
+            "DOM",
+            "ES2015.Core"
         ],
         "strict": true,
         "forceConsistentCasingInFileNames": true,

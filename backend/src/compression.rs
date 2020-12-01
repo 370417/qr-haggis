@@ -327,6 +327,7 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
     game
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
     use rand::seq::SliceRandom;

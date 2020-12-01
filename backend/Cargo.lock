@@ -163,6 +163,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -211,6 +212,15 @@ checksum = "cc797adac5f083b8ff0ca6f6294a999393d76e197c36488e2ef732c4715f6fa3"
 dependencies = [
  "byteorder",
  "rayon",
+]
+
+[[package]]
+name = "js-sys"
+version = "0.3.45"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ca059e81d9486668f12d455a4ea6daa600bd408134cd17e3d3fb5a32d1f016f8"
+dependencies = [
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -374,6 +384,7 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "image",
+ "js-sys",
  "num-bigint",
  "qrcode",
  "quircs",

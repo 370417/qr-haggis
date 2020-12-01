@@ -67,7 +67,7 @@ mod tests_for_qr_code {
         let mut game_from_qr_code = Game::create_state(None);
 
         let qr_code = game.write_qr_code(200, 200);
-        let dynamic_qr_code = DynamicImage::ImageLuma8(qr_code);
+        let dynamic_qr_code = DynamicImage::ImageRgba8(qr_code);
         game_from_qr_code.read_qr_code(dynamic_qr_code);
 
         assert_eq!(game, game_from_qr_code);

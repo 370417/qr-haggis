@@ -3,13 +3,16 @@ import type { Game, GameStage, CardFrontendState } from '../dist/qr_haggis';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 
+const QR_WIDTH = 296;
+const QR_HEIGHT = 296;
+
 import('../dist/qr_haggis').then(module => {
 
     type AppState = {
         stage: GameStage,
         myScore: number,
         opponentScore: number,
-        qrUrl: string,
+        qrPixels: Uint8Array,
         game: Game,
         canPlay: boolean,
         selectedCards: Set<number>,
@@ -22,7 +25,7 @@ import('../dist/qr_haggis').then(module => {
                 stage: module.GameStage.BeforeGame,
                 myScore: 0,
                 opponentScore: 0,
-                qrUrl: "",
+                qrPixels: Uint8Array.from([]),
                 game: module.Game.new(),
                 canPlay: false,
                 selectedCards: new Set(),
@@ -41,8 +44,16 @@ import('../dist/qr_haggis').then(module => {
                 case module.GameStage.Play:
                     if (this.state.canPlay) {
                         this.state.game.play_cards(Uint32Array.from(this.state.selectedCards));
+                        let scores = this.state.game.calculate_score();
+                        let stage = this.state.game.game_stage();
+                        let qrPixels = this.state.game.to_qr_code(QR_WIDTH, QR_HEIGHT);
                         this.setState({
-                            stage: this.state.game.game_stage(),
+                            stage,
+                            myScore: scores[0],
+                            opponentScore: scores[1],
+                            canPlay: false,
+                            selectedCards: new Set(),
+                            qrPixels,
                         });
                     } else {
                         alert("You did not select a valid card combination.");
@@ -54,22 +65,21 @@ import('../dist/qr_haggis').then(module => {
         cardHandler(cardId: number) {
             if (this.state.selectedCards.has(cardId)) {
                 this.state.selectedCards.delete(cardId);
-                this.setState({
-                    selectedCards: new Set(this.state.selectedCards),
-                });
             } else {
                 this.state.selectedCards.add(cardId);
-                this.setState({
-                    selectedCards: new Set(this.state.selectedCards),
-                });
             }
+            let canPlay = this.state.game.can_play_cards(Uint32Array.from(this.state.selectedCards));
+            this.setState({
+                selectedCards: new Set(this.state.selectedCards),
+                canPlay,
+            });
         }
 
         render() {
             return (
                 <div id="app">
                     <CardGrid stage={this.state.stage} selectedCards={this.state.selectedCards} cardHandler={this.cardHandler} game={this.state.game} />
-                    <Sidebar stage={this.state.stage} canPlay={this.state.canPlay} buttonHandler={this.buttonHandler} qrUrl={this.state.qrUrl} myScore={this.state.myScore} opponentScore={this.state.opponentScore} />
+                    <Sidebar stage={this.state.stage} canPlay={this.state.canPlay} buttonHandler={this.buttonHandler} qrPixels={this.state.qrPixels} myScore={this.state.myScore} opponentScore={this.state.opponentScore} />
                     <Scores myScore={this.state.myScore} opponentScore={this.state.opponentScore} />
                 </div>
             );
@@ -143,7 +153,7 @@ import('../dist/qr_haggis').then(module => {
     class Card extends React.Component<CardProps> {
         render() {
             if (this.props.stage == module.GameStage.BeforeGame) {
-                return <div className="card">{this.props.frontendState}</div>;
+                return <div className="card"></div>;
             }
             let className = "card";
             if (this.props.selected) {
@@ -151,7 +161,7 @@ import('../dist/qr_haggis').then(module => {
             }
             className += ` ${this.props.frontendState}`;
 
-            if (this.props.stage == module.GameStage.Play) {
+            if (this.props.stage == module.GameStage.Play && this.props.frontendState == module.CardFrontendState.InMyHand) {
                 return <div className={className} onClick={() => this.props.cardHandler(this.props.cardId)}>{this.props.frontendState}</div>;
             }
 
@@ -163,7 +173,7 @@ import('../dist/qr_haggis').then(module => {
         stage: GameStage,
         myScore: number,
         opponentScore: number,
-        qrUrl: string,
+        qrPixels: Uint8Array,
         canPlay: boolean,
         buttonHandler: () => void,
     };
@@ -180,13 +190,13 @@ import('../dist/qr_haggis').then(module => {
                     return <Button stage={this.props.stage} canPlay={this.props.canPlay} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
                 case module.GameStage.Wait:
                     return <>
-                        <QRDisplay qrUrl={this.props.qrUrl} />
+                        <QRDisplay qrPixels={this.props.qrPixels} />
                         <Button stage={this.props.stage} canPlay={this.props.canPlay} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
                         <QRReader />
                     </>;
                 case module.GameStage.GameOver:
                     return <>
-                        <QRDisplay qrUrl={this.props.qrUrl} />
+                        <QRDisplay qrPixels={this.props.qrPixels} />
                         <Button stage={this.props.stage} canPlay={this.props.canPlay} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
                     </>;
             }
@@ -194,12 +204,23 @@ import('../dist/qr_haggis').then(module => {
     }
 
     type QRDisplayProps = {
-        qrUrl: string,
+        qrPixels: Uint8Array,
     };
 
     class QRDisplay extends React.Component<QRDisplayProps> {
         render() {
-            return <img id="qr_display" src={this.props.qrUrl} />;
+            let canvas = document.createElement('canvas');
+            let clampedArray = Uint8ClampedArray.from(this.props.qrPixels);
+            let size = Math.sqrt(clampedArray.length / 4);
+            canvas.width = size;
+            canvas.height = size;
+            let ctx = canvas.getContext('2d');
+            if (ctx) {
+                console.log(clampedArray, canvas);
+                let imageData = new ImageData(clampedArray, canvas.width, canvas.height);
+                ctx.putImageData(imageData, 0, 0);
+            }
+            return <img id="qr_display" src={canvas.toDataURL()} />;
         }
     }
 

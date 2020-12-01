@@ -2,7 +2,7 @@ use crate::compression::{decode_game, encode_game};
 use card::*;
 use combination_type::*;
 use constant::*;
-use image::{DynamicImage, ImageBuffer, Luma};
+use image::{DynamicImage, ImageBuffer, Rgba};
 use location::Location;
 use player::Player;
 use qrcode::QrCode;
@@ -58,6 +58,13 @@ pub enum GameStage {
     GameOver,
 }
 
+// #[wasm_bindgen]
+// pub struct Image {
+//     pub width: u32,
+//     pub height: u32,
+//     pub pixels: js_sys::Uint8Array,
+// }
+
 #[wasm_bindgen]
 impl Game {
     pub fn new() -> Self {
@@ -66,12 +73,19 @@ impl Game {
 
     fn from_qr_code() {}
 
+    pub fn to_qr_code(&self, width: usize, height: usize) -> js_sys::Uint8Array {
+        let image = self.write_qr_code(width, height);
+
+        unsafe { js_sys::Uint8Array::view(&image.into_raw()) }
+    }
+
     // card_ids can be empty
     // Returns true on success, false on failure
     // Assumption: current_player == Player::Me
     pub fn can_play_cards(&mut self, card_ids: Vec<usize>) -> bool {
         if card_ids.is_empty() {
-            return true;
+            // We can't pass before the first combination of a combination group is played
+            return self.last_combination_type.is_some();
         }
 
         let card_values = card_ids
@@ -163,7 +177,7 @@ impl Game {
         self.current_player = self.current_player.other();
     }
 
-    fn game_stage(&self) -> GameStage {
+    pub fn game_stage(&self) -> GameStage {
         if self.is_game_over() {
             return GameStage::GameOver;
         }
@@ -174,7 +188,7 @@ impl Game {
         }
     }
 
-    fn card_frontend_state(&self, card_id: usize) -> CardFrontendState {
+    pub fn card_frontend_state(&self, card_id: usize) -> CardFrontendState {
         match self.locations[card_id] {
             Location::Haggis | Location::Hand(Player::Opponent) => CardFrontendState::Unknown,
             Location::Hand(Player::Me) => CardFrontendState::InMyHand,
@@ -311,14 +325,19 @@ impl Game {
         *self = decode_game(&decoded.payload);
     }
 
-    pub fn write_qr_code(&self, width: usize, height: usize) -> ImageBuffer<Luma<u8>, Vec<u8>> {
+    pub fn write_qr_code(&self, width: usize, height: usize) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
         let encoded_game = encode_game(self);
 
         // Encode some data into bits.
         let code = QrCode::new(&encoded_game).unwrap();
 
         // Render the bits into an image.
-        code.render::<Luma<u8>>().build()
+        code.render()
+            .max_dimensions(width as u32, height as u32)
+            .dark_color(Rgba([0, 0, 128, 255]))
+            .light_color(Rgba([224, 224, 224, 255]))
+            .quiet_zone(false)
+            .build()
     }
 
     pub fn init_state(&mut self) {

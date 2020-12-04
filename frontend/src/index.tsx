@@ -2,19 +2,23 @@ import type { Game, GameStage, CardFrontendState } from '../dist/qr_haggis';
 
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
+import Dropzone from 'react-dropzone';
+
 
 const QR_WIDTH = 296;
 const QR_HEIGHT = 296;
 
 import('../dist/qr_haggis').then(module => {
 
+    const game = module.Game.new();
+
     type AppState = {
         stage: GameStage,
+        qrPixels: Uint8ClampedArray,
         myScore: number,
         opponentScore: number,
-        qrPixels: Uint8Array,
-        game: Game,
-        canPlay: boolean,
+
+        isSelectionValid: boolean,
         selectedCards: Set<number>,
     };
 
@@ -23,15 +27,15 @@ import('../dist/qr_haggis').then(module => {
             super({});
             this.state = {
                 stage: module.GameStage.BeforeGame,
+                qrPixels: Uint8ClampedArray.from([]),
                 myScore: 0,
                 opponentScore: 0,
-                qrPixels: Uint8Array.from([]),
-                game: module.Game.new(),
-                canPlay: false,
+                isSelectionValid: false,
                 selectedCards: new Set(),
             };
             this.buttonHandler = this.buttonHandler.bind(this);
             this.cardHandler = this.cardHandler.bind(this);
+            this.readQRHandler = this.readQRHandler.bind(this);
         }
 
         buttonHandler() {
@@ -42,17 +46,15 @@ import('../dist/qr_haggis').then(module => {
                     });
                     break;
                 case module.GameStage.Play:
-                    if (this.state.canPlay) {
-                        this.state.game.play_cards(Uint32Array.from(this.state.selectedCards));
-                        let scores = this.state.game.calculate_score();
-                        let stage = this.state.game.game_stage();
-                        let qrPixels = this.state.game.to_qr_code(QR_WIDTH, QR_HEIGHT);
+                    if (this.state.isSelectionValid) {
+                        game.play_cards(Uint32Array.from(this.state.selectedCards));
+                        let scores = game.calculate_score();
+                        let qrPixels = game.to_qr_code(QR_WIDTH, QR_HEIGHT);
                         this.setState({
-                            stage,
+                            stage: game.game_stage(),
+                            selectedCards: new Set(),
                             myScore: scores[0],
                             opponentScore: scores[1],
-                            canPlay: false,
-                            selectedCards: new Set(),
                             qrPixels,
                         });
                     } else {
@@ -68,19 +70,33 @@ import('../dist/qr_haggis').then(module => {
             } else {
                 this.state.selectedCards.add(cardId);
             }
-            let canPlay = this.state.game.can_play_cards(Uint32Array.from(this.state.selectedCards));
+            let isSelectionValid = game.can_play_cards(Uint32Array.from(this.state.selectedCards));
             this.setState({
                 selectedCards: new Set(this.state.selectedCards),
-                canPlay,
+                isSelectionValid,
+            });
+        }
+
+        readQRHandler(imageData: ArrayBuffer) {
+            game.from_qr_code(new Uint8Array(imageData));
+            let scores = game.calculate_score();
+            console.log(game.game_stage());
+            this.setState({
+                stage: game.game_stage(),
+                selectedCards: new Set(),
+                myScore: scores[0],
+                opponentScore: scores[1],
+                isSelectionValid: game.can_play_cards(Uint32Array.from([])),
             });
         }
 
         render() {
+            const scores = game.calculate_score();
             return (
                 <div id="app">
-                    <CardGrid stage={this.state.stage} selectedCards={this.state.selectedCards} cardHandler={this.cardHandler} game={this.state.game} />
-                    <Sidebar stage={this.state.stage} canPlay={this.state.canPlay} buttonHandler={this.buttonHandler} qrPixels={this.state.qrPixels} myScore={this.state.myScore} opponentScore={this.state.opponentScore} />
-                    <Scores myScore={this.state.myScore} opponentScore={this.state.opponentScore} />
+                    <CardGrid stage={this.state.stage} selectedCards={this.state.selectedCards} cardHandler={this.cardHandler} game={game} />
+                    <Sidebar stage={this.state.stage} isSelectionValid={this.state.isSelectionValid} readQRHandler={this.readQRHandler} buttonHandler={this.buttonHandler} qrPixels={this.state.qrPixels} myScore={this.state.myScore} opponentScore={this.state.opponentScore} />
+                    <Scores myScore={scores[0]} opponentScore={scores[1]} />
                 </div>
             );
         }
@@ -173,9 +189,10 @@ import('../dist/qr_haggis').then(module => {
         stage: GameStage,
         myScore: number,
         opponentScore: number,
-        qrPixels: Uint8Array,
-        canPlay: boolean,
+        qrPixels: Uint8ClampedArray,
+        isSelectionValid: boolean,
         buttonHandler: () => void,
+        readQRHandler: (imageData: ArrayBuffer) => void,
     };
 
     class Sidebar extends React.Component<SidebarProps> {
@@ -183,34 +200,34 @@ import('../dist/qr_haggis').then(module => {
             switch (this.props.stage) {
                 case module.GameStage.BeforeGame:
                     return <>
-                        <Button stage={this.props.stage} canPlay={this.props.canPlay} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
-                        <QRReader />
+                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
+                        <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.Play:
-                    return <Button stage={this.props.stage} canPlay={this.props.canPlay} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
+                    return <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
                 case module.GameStage.Wait:
                     return <>
                         <QRDisplay qrPixels={this.props.qrPixels} />
-                        <Button stage={this.props.stage} canPlay={this.props.canPlay} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
-                        <QRReader />
+                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
+                        <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.GameOver:
                     return <>
                         <QRDisplay qrPixels={this.props.qrPixels} />
-                        <Button stage={this.props.stage} canPlay={this.props.canPlay} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
+                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
                     </>;
             }
         }
     }
 
     type QRDisplayProps = {
-        qrPixels: Uint8Array,
+        qrPixels: Uint8ClampedArray,
     };
 
     class QRDisplay extends React.Component<QRDisplayProps> {
         render() {
             let canvas = document.createElement('canvas');
-            let clampedArray = Uint8ClampedArray.from(this.props.qrPixels);
+            let clampedArray = this.props.qrPixels;
             let size = Math.sqrt(clampedArray.length / 4);
             canvas.width = size;
             canvas.height = size;
@@ -228,7 +245,7 @@ import('../dist/qr_haggis').then(module => {
         stage: GameStage,
         myScore: number,
         opponentScore: number,
-        canPlay: boolean,
+        isSelectionValid: boolean,
         buttonHandler: () => void,
     };
 
@@ -238,7 +255,7 @@ import('../dist/qr_haggis').then(module => {
                 case module.GameStage.BeforeGame:
                     return <div id="button" className="enabled" onClick={this.props.buttonHandler}>start</div>;
                 case module.GameStage.Play:
-                    if (this.props.canPlay) {
+                    if (this.props.isSelectionValid) {
                         return <div id="button" className="enabled" onClick={this.props.buttonHandler}>play</div>;
                     }
                     return <div id="button">play</div>;
@@ -256,9 +273,38 @@ import('../dist/qr_haggis').then(module => {
         }
     }
 
-    class QRReader extends React.Component {
+    type QRReaderProps = {
+        readQRHandler: (imageData: ArrayBuffer) => void,
+    };
+
+    class QRReader extends React.Component<QRReaderProps> {
+        constructor(props: QRReaderProps) {
+            super(props);
+            this.onDrop = this.onDrop.bind(this);
+        }
+
+        onDrop(acceptedFiles: File[]) {
+            console.log("In onDrop");
+
+            const file = acceptedFiles[0];
+            const reader = new FileReader();
+
+            const readQRHandler = this.props.readQRHandler;
+            reader.onload = () => {
+                readQRHandler(reader.result as ArrayBuffer);
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
         render() {
-            return <div id="qr_reader"></div>;
+            return <Dropzone onDrop={this.onDrop}>
+                {({ getRootProps, getInputProps }) => (
+                    <div id="qr_reader" {...getRootProps()}>
+                        <input {...getInputProps()} />
+                        <p>Drag 'n' drop some files here, or click to select files</p>
+                    </div>
+                )}
+            </Dropzone>;
         }
     }
 

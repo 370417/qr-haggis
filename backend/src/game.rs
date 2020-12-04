@@ -71,12 +71,17 @@ impl Game {
         Game::create_state(None)
     }
 
-    fn from_qr_code() {}
+    pub fn from_qr_code(&mut self, image_data: &[u8]) {
+        match image::load_from_memory(image_data) {
+            Ok(image) => self.read_qr_code(image),
+            Err(_) => {}
+        }
+    }
 
-    pub fn to_qr_code(&self, width: usize, height: usize) -> js_sys::Uint8Array {
+    pub fn to_qr_code(&self, width: usize, height: usize) -> js_sys::Uint8ClampedArray {
         let image = self.write_qr_code(width, height);
 
-        unsafe { js_sys::Uint8Array::view(&image.into_raw()) }
+        unsafe { js_sys::Uint8ClampedArray::view(&image.into_raw()) }
     }
 
     // card_ids can be empty
@@ -323,6 +328,7 @@ impl Game {
         let decoded = code.decode().expect("failed to decode qr code");
 
         *self = decode_game(&decoded.payload);
+        self.switch_perspective();
     }
 
     pub fn write_qr_code(&self, width: usize, height: usize) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
@@ -336,7 +342,6 @@ impl Game {
             .max_dimensions(width as u32, height as u32)
             .dark_color(Rgba([0, 0, 128, 255]))
             .light_color(Rgba([224, 224, 224, 255]))
-            .quiet_zone(false)
             .build()
     }
 

@@ -5,15 +5,36 @@
     <title>Haggis</title>
     <meta charset="utf8" />
     <style>
+        :root {
+            --bg-color: #000;
+            --fg-color: #fdd;
+            font-size: calc(0.2em + 1vw);
+        }
+
+        body {
+            background: var(--bg-color);
+            color: var(--fg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+        }
+
         #app {
             position: relative;
+            width: 40.5em;
+            height: 21em;
         }
 
         .card {
             width: 2em;
             height: 2em;
             border-radius: 1em;
-            border: 1px solid #000;
+            border: 1px solid var(--fg-color);
         }
 
         #normal_cards {
@@ -79,7 +100,7 @@
         }
 
         #qr_reader {
-            top: 12em;
+            top: 12.5em;
             background: #ddd;
         }
 
@@ -93,7 +114,7 @@
 
         #button {
             position: absolute;
-            top: 9em;
+            top: 9.5em;
             left: 31.5em;
             width: 9em;
             height: 2em;

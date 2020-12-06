@@ -232,7 +232,7 @@ import('../dist/qr_haggis').then(module => {
                 case module.GameStage.BeforeGame:
                     return <>
                         <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
-                        <QRReader2 readQRHandler={this.props.readQRHandler} />
+                        <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.Play:
                     return <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
@@ -240,7 +240,7 @@ import('../dist/qr_haggis').then(module => {
                     return <>
                         {this.props.qrObjectUrl !== undefined ? <QRDisplay qrObjectUrl={this.props.qrObjectUrl} /> : ""}
                         <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
-                        <QRReader2 readQRHandler={this.props.readQRHandler} />
+                        <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.GameOver:
                     return <>
@@ -300,48 +300,16 @@ import('../dist/qr_haggis').then(module => {
     class QRReader extends React.Component<QRReaderProps> {
         constructor(props: QRReaderProps) {
             super(props);
-            this.onDrop = this.onDrop.bind(this);
+
+            this.dragOver = this.dragOver.bind(this);
+            this.drop = this.drop.bind(this);
+            this.selectFile = this.selectFile.bind(this);
         }
 
-        onDrop(acceptedFiles: File[]) {
-            console.log("In onDrop");
-
-            const file = acceptedFiles[0];
-            const reader = new FileReader();
-
-            const readQRHandler = this.props.readQRHandler;
-            reader.onload = () => {
-                readQRHandler(reader.result as ArrayBuffer);
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        render() {
-            return <Dropzone onDrop={this.onDrop}>
-                {({ getRootProps, getInputProps }) => (
-                    <div id="qr_reader2" {...getRootProps()}>
-                        <input {...getInputProps()} />
-                        <p>Drag 'n' drop some files here, or click to select files</p>
-                    </div>
-                )}
-            </Dropzone>;
-        }
-    }
-
-    type ScoresProps = {
-        myScore: number,
-        opponentScore: number,
-    };
-
-    class Scores extends React.Component<ScoresProps> {
-        render() {
-            return <div id="scores">{this.props.myScore}pts / {this.props.opponentScore}pts</div>;
-        }
-    }
-
-    class QRReader2 extends React.Component<QRReaderProps> {
         dragOver(event: React.DragEvent) {
-            if (event.dataTransfer.types.includes("text/uri-list")) {
+            if (event.dataTransfer.types.includes("text/uri-list")
+                || event.dataTransfer.items[0].kind == "file"
+            ) {
                 event.dataTransfer.dropEffect = "copy";
                 event.preventDefault();
             }
@@ -351,6 +319,7 @@ import('../dist/qr_haggis').then(module => {
             event.preventDefault();
 
             if (event.dataTransfer.types.includes("text/uri-list")) {
+                // Dragging from browser windows
                 const uri = event.dataTransfer.getData("text/uri-list");
 
                 const img = new Image();
@@ -368,14 +337,71 @@ import('../dist/qr_haggis').then(module => {
                     });
                 };
                 img.src = uri;
+            } else if (event.dataTransfer.items[0]) {
+                // Dragging from the filesystem
+                const file = event.dataTransfer.items[0].getAsFile();
+                if (!file) {
+                    return;
+                }
+                createImageBitmap(file).then(bitmap => {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = bitmap.width;
+                    canvas.height = bitmap.height;
+                    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+
+                    canvas.toBlob(blob => {
+                        blob?.arrayBuffer().then(arrayBuffer => {
+                            this.props.readQRHandler(arrayBuffer);
+                        });
+                    });
+                });
             }
         }
 
+        selectFile(event: React.ChangeEvent) {
+            const element = event.target as HTMLInputElement;
+
+            const file = element.files && element.files[0];
+            if (file) {
+                createImageBitmap(file).then(bitmap => {
+                    const canvas = document.createElement("canvas");
+                    canvas.width = bitmap.width;
+                    canvas.height = bitmap.height;
+                    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+
+                    canvas.toBlob(blob => {
+                        blob?.arrayBuffer().then(arrayBuffer => {
+                            this.props.readQRHandler(arrayBuffer);
+                        });
+                    });
+                });
+            }
+
+            // clear the file from the input
+            element.value = "";
+        }
+
         render() {
-            return <div id="qr_reader"
+            return <label id="qr_reader"
                 onDragOver={this.dragOver}
                 onDragEnter={this.dragOver}
-                onDrop={this.drop.bind(this)}></div>;
+                onDrop={this.drop}>
+                <input
+                    type="file"
+                    onChange={this.selectFile}
+                    style={{ display: "none" }} />
+            </label>;
+        }
+    }
+
+    type ScoresProps = {
+        myScore: number,
+        opponentScore: number,
+    };
+
+    class Scores extends React.Component<ScoresProps> {
+        render() {
+            return <div id="scores">{this.props.myScore}pts / {this.props.opponentScore}pts</div>;
         }
     }
 

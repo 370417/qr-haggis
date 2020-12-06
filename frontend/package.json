@@ -13,8 +13,7 @@
   "dependencies": {
     "@types/react-dom": "^17.0.0",
     "react": "^17.0.1",
-    "react-dom": "^17.0.1",
-    "react-dropzone": "^11.2.4"
+    "react-dom": "^17.0.1"
   },
   "devDependencies": {
     "@types/react": "^16.9.56",

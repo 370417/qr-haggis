@@ -10,6 +10,7 @@ pub enum Location {
     Table {
         captured_by: Option<Player>,
         order: usize,
+        in_last_combination_before_pass: bool,
     },
 }
 

@@ -174,6 +174,7 @@ impl Game {
                 self.locations[card_id] = Location::Table {
                     order: self.next_order,
                     captured_by: None,
+                    in_last_combination_before_pass: false,
                 };
             }
             self.next_order += 1;
@@ -201,6 +202,7 @@ impl Game {
             Location::Table {
                 captured_by: None,
                 order,
+                ..
             } => {
                 if order + 1 == self.next_order {
                     CardFrontendState::JustPlayed
@@ -409,9 +411,17 @@ impl Game {
             self.current_player.other()
         };
         for location in &mut self.locations {
-            if let Location::Table { captured_by, .. } = location {
+            if let Location::Table {
+                captured_by,
+                order,
+                in_last_combination_before_pass,
+            } = location
+            {
                 if captured_by.is_none() {
                     *captured_by = Some(player_who_captures);
+                    if *order + 1 == self.next_order {
+                        *in_last_combination_before_pass = true;
+                    }
                 }
             }
         }

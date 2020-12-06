@@ -113,8 +113,9 @@ import('../dist/qr_haggis').then(module => {
 
         render() {
             const scores = game.calculate_score();
+            const player = game.am_player_1() ? "player1" : "player2";
             return (
-                <div id="app" className={game.am_player_1() ? "player1" : "player2"}>
+                <div id="app" className={`${player} stage${this.state.stage}`}>
                     <CardGrid
                         stage={this.state.stage}
                         selectedCards={this.state.selectedCards}
@@ -145,13 +146,9 @@ import('../dist/qr_haggis').then(module => {
     class CardGrid extends React.Component<CardGridProps> {
         render() {
             let rankLabels = [];
-            let suitLabels = [];
             let wildcardLabels = ['J', 'Q', 'K'];
             for (let rank = 2; rank <= 10; rank++) {
                 rankLabels.push(<span>{rank}</span>);
-            }
-            for (let suit = 0; suit < 4; suit++) {
-                suitLabels.push(<span>{suit}</span>);
             }
             let normalCards = [];
             let myWilcards = [];
@@ -183,7 +180,7 @@ import('../dist/qr_haggis').then(module => {
             }
             return <div id="card_grid">
                 <div id="ranks"><span></span>{rankLabels}</div>
-                <div id="suits">{suitLabels}</div>
+                <div id="suits"><span>♠</span><span>♥</span><span>♦</span><span>♣</span></div>
                 <div id="normal_cards">{normalCards}</div>
                 <div id="my_wildcards">{myWilcards}{wildcardLabels.map(label => <span>{label}</span>)}</div>
                 <div id="opponent_wildcards">{opponentWildcards}{wildcardLabels.map(label => <span>{label}</span>)}</div>

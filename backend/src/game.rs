@@ -143,26 +143,27 @@ impl Game {
             use CombinationType::*;
             self.last_combination_type =
                 match (&self.last_combination_type, &current_combination_type) {
-                    (_, None) => panic!(),
+                    (_, None) => panic!("play_cards: No current combination type"),
                     (Some(Bomb(last_bomb)), Some(Bomb(current_bomb))) => {
                         if current_bomb <= last_bomb {
-                            panic!();
+                            panic!("play_cards: Bomb rank too low");
                         } else {
                             current_combination_type
                         }
                     }
-                    (Some(Bomb(_)), Some(Normal(_))) => panic!(),
+                    (Some(Bomb(_)), Some(Normal(_))) => {
+                        panic!("play_cards: Tried to play normal combination after a bomb")
+                    }
                     (Some(Normal(last_normal)), Some(Normal(current_normal))) => {
                         if let Some(new_normal_type) =
                             current_normal.has_higher_rank_than(last_normal)
                         {
                             Some(Normal(new_normal_type))
                         } else {
-                            eprintln!(
-                                "last_normal {:?}, current_normal {:?}",
-                                last_normal, current_normal
+                            panic!(
+                                "play_cards: Tried to play {:?} after {:?}",
+                                current_normal, last_normal
                             );
-                            panic!();
                         }
                     }
                     _ => current_combination_type,
@@ -285,6 +286,10 @@ impl Game {
 
         Box::new([my_score, opponent_score])
     }
+
+    pub fn am_player_1(&self) -> bool {
+        self.me_went_first
+    }
 }
 
 impl Game {
@@ -340,8 +345,8 @@ impl Game {
         // Render the bits into an image.
         code.render()
             .max_dimensions(width as u32, height as u32)
-            .dark_color(Rgba([0, 0, 128, 255]))
-            .light_color(Rgba([224, 224, 224, 255]))
+            .dark_color(Rgba([0, 0, 0, 255]))
+            .light_color(Rgba([217, 217, 217, 255]))
             .build()
     }
 

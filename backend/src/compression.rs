@@ -164,7 +164,7 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
     let mut grouping_array = 0_u128;
     let mut card_order = [0; DECK_SIZE - HAGGIS_SIZE];
 
-    //Card order: cards_in_my_hand, cards_in_opponents_hand, cards_on_the_table_in_order
+    // Card order: cards_in_my_hand, cards_in_opponents_hand, cards_on_the_table_in_order
 
     for (i, card_id) in my_hand.iter().enumerate() {
         card_order[i] = *card_id;
@@ -204,6 +204,7 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
                 let combination = &cards_on_table[&last_order];
                 let curr_captured_by = game.locations[combination[0]].captured_by();
                 if curr_captured_by.is_some() {
+                    // mark the end of a group of combinations
                     set_1_for_grouping_array(&mut grouping_array, i - 1, 1);
                 }
                 break;

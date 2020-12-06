@@ -6,9 +6,17 @@
     <meta charset="utf8" />
     <style>
         :root {
-            --bg-color: #000;
-            --fg-color: #fdd;
-            font-size: calc(0.2em + 1vw);
+            --bg-color: #f6f6f6;
+            --fg-color: #000000;
+            font-size: calc(0.1em + 1.5vw);
+            --dark-green: #84a706;
+            --light-green: #a4cc44;
+            --dark-yellow: #d7b826;
+            --light-yellow: #f2dd2f;
+            --dark-gray: #afacac;
+            --light-gray: #d9d9d9;
+            --circle-gray: #cccccc;
+            --border-width: 0.12em;
         }
 
         body {
@@ -30,11 +38,70 @@
             height: 21em;
         }
 
+        #app.player1 {
+            --my-dark: var(--dark-green);
+            --my-light: var(--light-green);
+            --opponent-dark: var(--dark-yellow);
+            --opponent-light: var(--light-yellow);
+        }
+
+        #app.player2 {
+            --my-dark: var(--dark-yellow);
+            --my-light: var(--light-yellow);
+            --opponent-dark: var(--dark-green);
+            --opponent-light: var(--light-green);
+        }
+
         .card {
             width: 2em;
             height: 2em;
-            border-radius: 1em;
-            border: 1px solid var(--fg-color);
+            border-radius: 50%;
+            border: var(--border-width) solid transparent;
+        }
+
+        /* Unknown */
+        .card.state0 {
+            border-color: var(--circle-gray);
+        }
+
+        /* InMyHand */
+        .card.state1 {
+            border-color: var(--my-dark);
+            background: var(--my-light);
+        }
+
+        #app.stage1 .card.state1 {
+            cursor: pointer;
+        }
+
+        /* JustPlayed by me or selected */
+        #app.stage2 .card.state2,
+        .card.state1.selected {
+            border-color: #0004;
+            background: var(--my-dark);
+        }
+
+        /* JustPlayed by opponent */
+        #app.stage1 .card.state2 {
+            border-color: #0004;
+            background: var(--opponent-dark);
+        }
+
+        /* ThisCombinationGroup */
+        .card.state3 {
+            background: var(--light-gray);
+        }
+
+        /* CapturedByMe */
+        .card.state4 {
+            /* border-color: var(--my-dark); */
+            border-style: dashed;
+        }
+
+        /* CapturedByOpponent */
+        .card.state5 {
+            /* border-color: var(--opponent-dark); */
+            border-style: dashed;
         }
 
         #normal_cards {
@@ -96,29 +163,32 @@
         }
 
         #qr_display {
-            top: 0;
+            top: 1em;
         }
 
         #qr_reader {
             top: 12.5em;
-            background: #ddd;
+            border: var(--border-width) dashed var(--light-gray);
+            box-sizing: border-box;
         }
 
         #qr_display,
         #qr_reader {
             position: absolute;
             left: 31.5em;
-            width: 9em;
-            height: 9em;
+            width: 7.5em;
+            height: 7.5em;
         }
 
         #button {
             position: absolute;
             top: 9.5em;
             left: 31.5em;
-            width: 9em;
+            width: 7.5em;
             height: 2em;
-            background: #ddd;
+            background: var(--light-gray);
+            line-height: 2em;
+            text-align: center;
         }
     </style>
 </head>

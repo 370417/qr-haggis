@@ -17,7 +17,7 @@ impl Location {
     pub fn captured_by(&self) -> Option<Player> {
         match self {
             Location::Table { captured_by, .. } => *captured_by,
-            _ => panic!(),
+            _ => panic!("captured_by: location was not table"),
         }
     }
 }

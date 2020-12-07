@@ -2,21 +2,21 @@
 <html>
 
 <head>
-    <title>Haggis</title>
+    <title>QR Haggis</title>
     <meta charset="utf8" />
     <style>
         :root {
             --bg-color: #f6f6f6;
             --fg-color: #000000;
-            font-size: calc(0.1em + 1.5vw);
             --dark-green: #84a706;
             --light-green: #a4cc44;
-            --dark-yellow: #d7b826;
-            --light-yellow: #f2dd2f;
-            --dark-gray: #afacac;
+            --dark-yellow: #c2a413;
+            --light-yellow: #e1be25;
             --light-gray: #d9d9d9;
             --circle-gray: #cccccc;
             --border-width: 0.12em;
+            font-size: 2vw;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         }
 
         body {
@@ -59,14 +59,19 @@
             border: var(--border-width) solid transparent;
         }
 
-        /* Unknown */
-        .card.state0 {
+        /* Haggis or InOpponentHand before game end */
+        .card.state0,
+        #app:not(.stage3) .card.state6 {
             border-color: var(--circle-gray);
+        }
+
+        /* InOpponentHand when game is over */
+        #app.stage3 .card.state6 {
+            background: var(--opponent-light);
         }
 
         /* InMyHand */
         .card.state1 {
-            border-color: var(--my-dark);
             background: var(--my-light);
         }
 
@@ -77,13 +82,11 @@
         /* JustPlayed by me or selected */
         #app.stage2 .card.state2,
         .card.state1.selected {
-            border-color: #0004;
             background: var(--my-dark);
         }
 
         /* JustPlayed by opponent */
         #app.stage1 .card.state2 {
-            border-color: #0004;
             background: var(--opponent-dark);
         }
 
@@ -94,14 +97,29 @@
 
         /* CapturedByMe */
         .card.state4 {
-            /* border-color: var(--my-dark); */
-            border-style: dashed;
+            border-color: var(--my-dark);
         }
 
         /* CapturedByOpponent */
         .card.state5 {
-            /* border-color: var(--opponent-dark); */
-            border-style: dashed;
+            border-color: var(--opponent-dark);
+        }
+
+        /* Hide captured cards and scores unless game is over or hand is hovered over */
+        .state4,
+        .state5,
+        #player1score,
+        #player2score {
+            opacity: 0;
+        }
+
+        #hand_sizes:hover~#card_grid .state4,
+        #hand_sizes:hover~#card_grid .state5,
+        #app:not(.stage0) #hand_sizes:hover~#player1score,
+        #app:not(.stage0) #hand_sizes:hover~#player2score,
+        #app.stage3 #player1score,
+        #app.stage3 #player2score {
+            opacity: 1;
         }
 
         #normal_cards {
@@ -118,11 +136,16 @@
         #ranks {
             display: grid;
             grid-template-columns: repeat(10, 3em);
+            position: absolute;
+            top: 0.25em;
         }
 
         #suits {
             display: grid;
             grid-template-rows: repeat(4, 3em);
+            position: absolute;
+            top: 3em;
+            left: 0.25em;
         }
 
         #ranks span,
@@ -137,33 +160,73 @@
         #opponent_wildcards {
             display: grid;
             grid-template-columns: repeat(3, 3em);
-            grid-template-rows: repeat(4, 3em);
+            grid-template-rows: repeat(2, 2.5em);
             position: absolute;
-            top: 15em;
+            top: 15.25em;
             justify-items: center;
             align-items: center;
         }
 
         #my_wildcards {
-            left: 3em;
+            left: 4.5em;
         }
 
         #opponent_wildcards {
-            left: 21em;
+            left: 19.5em;
         }
 
-        #scores {
+        #hand_sizes {
             position: absolute;
             top: 15em;
-            left: 12em;
-            width: 9em;
+            left: 13.5em;
+            width: 6em;
+            height: 5em;
+            z-index: 1;
+        }
+
+        #player1hand,
+        #player2hand,
+        #hand_separator {
+            position: absolute;
+            width: 3em;
+            height: 3em;
+            text-align: center;
+            line-height: 3em;
+            left: 1.5em;
+        }
+
+        #player1hand {
+            color: var(--dark-green);
+            left: 0em;
+        }
+
+        #player2hand {
+            color: var(--dark-yellow);
+            left: 3em;
+        }
+
+        #player1score,
+        #player2score {
+            position: absolute;
+            top: 17.5em;
+            width: 3em;
             height: 3em;
             text-align: center;
             line-height: 3em;
         }
 
+        #player1score {
+            color: var(--dark-green);
+            left: 13.5em;
+        }
+
+        #player2score {
+            color: var(--dark-yellow);
+            left: 16.5em;
+        }
+
         #qr_display {
-            top: 1em;
+            top: 1.25em;
         }
 
         #qr_reader {
@@ -175,20 +238,58 @@
         #qr_display,
         #qr_reader {
             position: absolute;
-            left: 31.5em;
-            width: 7.5em;
-            height: 7.5em;
+            left: 31.25em;
+            width: 7.25em;
+            height: 7.25em;
         }
 
         #button {
             position: absolute;
             top: 9.5em;
-            left: 31.5em;
-            width: 7.5em;
+            left: 31.25em;
+            width: 7.25em;
             height: 2em;
             background: var(--light-gray);
-            line-height: 2em;
+            line-height: calc(2em - 2 * var(--border-width));
             text-align: center;
+            border: var(--border-width) dashed transparent;
+            box-sizing: border-box;
+        }
+
+        #button.enabled {
+            background: var(--my-light);
+            cursor: pointer;
+        }
+
+        #button.tied {
+            background: transparent;
+            border-color: var(--light-gray);
+        }
+
+        #button.won {
+            background: transparent;
+            border-color: var(--light-gray);
+            color: var(--my-dark);
+        }
+
+        #button.lost {
+            background: transparent;
+            border-color: var(--light-gray);
+            color: var(--opponent-dark);
+        }
+
+        #app.stage3 #button:hover::after {
+            content: 'play again?';
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-color);
+        }
+
+        #app.stage3 #button:hover {
+            cursor: pointer;
         }
     </style>
 </head>

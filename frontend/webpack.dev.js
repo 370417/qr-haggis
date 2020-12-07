@@ -18,7 +18,6 @@ module.exports = {
         new CopyPlugin({
             patterns: [
                 { from: 'static', to: path.join(__dirname, 'dist') },
-                // { from: 'wasm', to: path.join(__dirname, 'dist') },
             ],
         }),
         new WasmPackPlugin({
@@ -33,7 +32,6 @@ module.exports = {
         contentBase: path.join(__dirname, 'dist'),
         compress: true,
         port: 9000,
-        // writeToDisk: true,
     },
     resolve: {
         extensions: ['.tsx', '.ts', '.js'],

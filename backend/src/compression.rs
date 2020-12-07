@@ -43,12 +43,13 @@ const CARD_ORDER_BYTE_LEN: usize = 20;
 // hands. Then just follow this pattern for every remaining card in the hand.
 
 fn compress_hand(hand: &[usize]) {
-    let mut min_card_val = 0;
-    let mut num_remaining_cards = INIT_HAND_SIZE_WO_WILDCARD - 1;
-    for &card in hand {
-        for smaller_card_val in min_card_val..card {}
-        min_card_val = card + 1;
-        num_remaining_cards -= 1;
+    let mut num_smaller_hands = 0;
+    for (i, &card) in hand.iter().enumerate() {
+        let num_larger_cards = NUM_SUITS * NUM_RANKS - card - 1;
+        let num_remaining_cards = INIT_HAND_SIZE_WO_WILDCARD - i - 1;
+        for smaller_card_val in i..card {
+            num_smaller_hands += n_choose_k(num_larger_cards, num_remaining_cards);
+        }
     }
 }
 

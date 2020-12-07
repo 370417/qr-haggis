@@ -2,7 +2,6 @@ import type { Game, GameStage, CardFrontendState } from '../dist/qr_haggis';
 
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
-import Dropzone from 'react-dropzone';
 
 
 const QR_WIDTH = 296;
@@ -10,7 +9,7 @@ const QR_HEIGHT = 296;
 
 import('../dist/qr_haggis').then(module => {
 
-    const game = module.Game.new();
+    let game = module.Game.new();
 
     type AppState = {
         stage: GameStage,
@@ -63,6 +62,17 @@ import('../dist/qr_haggis').then(module => {
                         alert("You did not select a valid card combination.");
                     }
                     break;
+                case module.GameStage.GameOver:
+                    game = module.Game.new();
+                    this.setState({
+                        stage: module.GameStage.BeforeGame,
+                        qrObjectUrl: undefined,
+                        myScore: 0,
+                        opponentScore: 0,
+                        isSelectionValid: false,
+                        selectedCards: new Set(),
+                    });
+                    break;
             }
         }
 
@@ -113,17 +123,34 @@ import('../dist/qr_haggis').then(module => {
 
         render() {
             const scores = game.calculate_score();
-            const player = game.am_player_1() ? "player1" : "player2";
+            const handSizes = game.hand_sizes();
+            let player: string, player1score: number, player2score: number, player1hand, player2hand;
+            if (game.am_player_1()) {
+                player = "player1";
+                player1score = scores[0];
+                player2score = scores[1];
+                player1hand = handSizes[0];
+                player2hand = handSizes[1];
+            } else {
+                player = "player2";
+                player1score = scores[1];
+                player2score = scores[0];
+                player1hand = handSizes[1];
+                player2hand = handSizes[0];
+            }
             return (
                 <div id="app" className={`${player} stage${this.state.stage}`}>
+                    <HandSizes
+                        player1hand={player1hand}
+                        player2hand={player2hand} />
                     <CardGrid
                         stage={this.state.stage}
                         selectedCards={this.state.selectedCards}
                         cardHandler={this.cardHandler}
                         game={game} />
                     <Scores
-                        myScore={scores[0]}
-                        opponentScore={scores[1]} />
+                        player1score={player1score}
+                        player2score={player2score} />
                     <Sidebar stage={this.state.stage}
                         isSelectionValid={this.state.isSelectionValid}
                         readQRHandler={this.readQRHandler}
@@ -216,6 +243,12 @@ import('../dist/qr_haggis').then(module => {
         }
     }
 
+    enum Outcome {
+        Won,
+        Lost,
+        Tied,
+    }
+
     type SidebarProps = {
         stage: GameStage,
         myScore: number,
@@ -228,24 +261,30 @@ import('../dist/qr_haggis').then(module => {
 
     class Sidebar extends React.Component<SidebarProps> {
         render() {
+            let outcome = Outcome.Tied;
+            if (this.props.myScore > this.props.opponentScore) {
+                outcome = Outcome.Won;
+            } else if (this.props.myScore < this.props.opponentScore) {
+                outcome = Outcome.Lost;
+            }
             switch (this.props.stage) {
                 case module.GameStage.BeforeGame:
                     return <>
-                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
+                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} outcome={outcome} />
                         <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.Play:
-                    return <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
+                    return <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} outcome={outcome} />
                 case module.GameStage.Wait:
                     return <>
                         {this.props.qrObjectUrl !== undefined ? <QRDisplay qrObjectUrl={this.props.qrObjectUrl} /> : ""}
-                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
+                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} outcome={outcome} />
                         <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.GameOver:
                     return <>
                         {this.props.qrObjectUrl !== undefined ? <QRDisplay qrObjectUrl={this.props.qrObjectUrl} /> : ""}
-                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} myScore={this.props.myScore} opponentScore={this.props.opponentScore} />
+                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} outcome={outcome} />
                     </>;
             }
         }
@@ -263,8 +302,7 @@ import('../dist/qr_haggis').then(module => {
 
     type ButtonProps = {
         stage: GameStage,
-        myScore: number,
-        opponentScore: number,
+        outcome: Outcome,
         isSelectionValid: boolean,
         buttonHandler: () => void,
     };
@@ -282,12 +320,13 @@ import('../dist/qr_haggis').then(module => {
                 case module.GameStage.Wait:
                     return <div id="button">wait</div>;
                 case module.GameStage.GameOver:
-                    if (this.props.myScore > this.props.opponentScore) {
-                        return <div id="button">you won</div>;
-                    } else if (this.props.myScore < this.props.opponentScore) {
-                        return <div id="button">you lost</div>;
-                    } else {
-                        return <div id="button">you tied</div>;
+                    switch (this.props.outcome) {
+                        case Outcome.Won:
+                            return <div id="button" className="won" onClick={this.props.buttonHandler}>you won!</div>;
+                        case Outcome.Lost:
+                            return <div id="button" className="lost" onClick={this.props.buttonHandler}>you lost.</div>;
+                        case Outcome.Tied:
+                            return <div id="button" className="tied" onClick={this.props.buttonHandler}>you tied.</div>;
                     }
             }
         }
@@ -395,13 +434,31 @@ import('../dist/qr_haggis').then(module => {
     }
 
     type ScoresProps = {
-        myScore: number,
-        opponentScore: number,
+        player1score: number,
+        player2score: number,
     };
 
     class Scores extends React.Component<ScoresProps> {
         render() {
-            return <div id="scores">{this.props.myScore}pts / {this.props.opponentScore}pts</div>;
+            return <>
+                <span id="player1score">{this.props.player1score}pts</span>
+                <span id="player2score">{this.props.player2score}pts</span>
+            </>;
+        }
+    }
+
+    type HandSizesProps = {
+        player1hand: number,
+        player2hand: number,
+    };
+
+    class HandSizes extends React.Component<HandSizesProps> {
+        render() {
+            return <div id="hand_sizes">
+                <span id="player1hand">{this.props.player1hand}</span>
+                <span id="hand_separator">–</span>
+                <span id="player2hand">{this.props.player2hand}</span>
+            </div>;
         }
     }
 

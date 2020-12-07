@@ -42,12 +42,13 @@ pub struct Game {
 }
 #[wasm_bindgen]
 pub enum CardFrontendState {
-    Unknown,
+    Haggis,
     InMyHand,
     JustPlayed,
     ThisCombinationGroup,
     CapturedByMe,
     CapturedByOpponent,
+    InOpponentHand,
 }
 
 #[wasm_bindgen]
@@ -197,7 +198,8 @@ impl Game {
 
     pub fn card_frontend_state(&self, card_id: usize) -> CardFrontendState {
         match self.locations[card_id] {
-            Location::Haggis | Location::Hand(Player::Opponent) => CardFrontendState::Unknown,
+            Location::Haggis => CardFrontendState::Haggis,
+            Location::Hand(Player::Opponent) => CardFrontendState::InOpponentHand,
             Location::Hand(Player::Me) => CardFrontendState::InMyHand,
             Location::Table {
                 captured_by: None,
@@ -221,10 +223,27 @@ impl Game {
         }
     }
 
-    /// return (my_score, opponent_score) based on the scores so far
-    pub fn calculate_score(&mut self) -> Box<[usize]> {
+    /// return (my_hand_size, opponent_hand_size)
+    pub fn hand_sizes(&mut self) -> Box<[usize]> {
         let mut my_card_count = 0;
         let mut opponent_card_count = 0;
+
+        for location in self.locations.iter() {
+            match location {
+                Location::Hand(Player::Me) => my_card_count += 1,
+                Location::Hand(Player::Opponent) => opponent_card_count += 1,
+                _ => {}
+            };
+        }
+
+        Box::new([my_card_count, opponent_card_count])
+    }
+
+    /// return (my_score, opponent_score) based on the scores so far
+    pub fn calculate_score(&mut self) -> Box<[usize]> {
+        let hand_sizes = self.hand_sizes();
+        let mut my_card_count = hand_sizes[0];
+        let mut opponent_card_count = hand_sizes[1];
 
         for location in self.locations.iter() {
             match location {

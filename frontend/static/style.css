@@ -1,0 +1,287 @@
+:root {
+    --bg-color: #f6f6f6;
+    --fg-color: #000000;
+    --dark-green: #84a706;
+    --light-green: #a4cc44;
+    --dark-yellow: #c2a413;
+    --light-yellow: #e1be25;
+    --light-gray: #d9d9d9;
+    --circle-gray: #cccccc;
+    --border-width: 0.12em;
+    font-size: 2vw;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+body {
+    background: var(--bg-color);
+    color: var(--fg-color);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+}
+
+#app {
+    position: relative;
+    width: 40.5em;
+    height: 21em;
+}
+
+#app.player1 {
+    --my-dark: var(--dark-green);
+    --my-light: var(--light-green);
+    --opponent-dark: var(--dark-yellow);
+    --opponent-light: var(--light-yellow);
+}
+
+#app.player2 {
+    --my-dark: var(--dark-yellow);
+    --my-light: var(--light-yellow);
+    --opponent-dark: var(--dark-green);
+    --opponent-light: var(--light-green);
+}
+
+.card {
+    width: 2em;
+    height: 2em;
+    border-radius: 50%;
+    border: var(--border-width) solid transparent;
+}
+
+/* Haggis or InOpponentHand before game end */
+.card.state0,
+#app:not(.stage3) .card.state6 {
+    border-color: var(--circle-gray);
+}
+
+/* InOpponentHand when game is over */
+#app.stage3 .card.state6 {
+    background: var(--opponent-light);
+}
+
+/* InMyHand */
+.card.state1 {
+    background: var(--my-light);
+}
+
+#app.stage1 .card.state1 {
+    cursor: pointer;
+}
+
+/* JustPlayed by me or selected */
+#app.stage2 .card.state2,
+.card.state1.selected {
+    background: var(--my-dark);
+}
+
+/* JustPlayed by opponent */
+#app.stage1 .card.state2 {
+    background: var(--opponent-dark);
+}
+
+/* ThisCombinationGroup */
+.card.state3 {
+    background: var(--light-gray);
+}
+
+/* CapturedByMe */
+.card.state4 {
+    border-color: var(--my-dark);
+}
+
+/* CapturedByOpponent */
+.card.state5 {
+    border-color: var(--opponent-dark);
+}
+
+/* Hide captured cards and scores unless game is over or hand is hovered over */
+.state4,
+.state5,
+#player1score,
+#player2score {
+    opacity: 0;
+}
+
+#hand_sizes:hover~#card_grid .state4,
+#hand_sizes:hover~#card_grid .state5,
+#app:not(.stage0) #hand_sizes:hover~#player1score,
+#app:not(.stage0) #hand_sizes:hover~#player2score,
+#app.stage3 #player1score,
+#app.stage3 #player2score {
+    opacity: 1;
+}
+
+#normal_cards {
+    display: grid;
+    grid-template-columns: repeat(9, 3em);
+    grid-template-rows: repeat(4, 3em);
+    position: absolute;
+    top: 3em;
+    left: 3em;
+    justify-items: center;
+    align-items: center;
+}
+
+#ranks {
+    display: grid;
+    grid-template-columns: repeat(10, 3em);
+    position: absolute;
+    top: 0.25em;
+}
+
+#suits {
+    display: grid;
+    grid-template-rows: repeat(4, 3em);
+    position: absolute;
+    top: 3em;
+    left: 0.25em;
+}
+
+#ranks span,
+#suits span {
+    width: 3em;
+    height: 3em;
+    text-align: center;
+    line-height: 3em;
+}
+
+#my_wildcards,
+#opponent_wildcards {
+    display: grid;
+    grid-template-columns: repeat(3, 3em);
+    grid-template-rows: repeat(2, 2.5em);
+    position: absolute;
+    top: 15.25em;
+    justify-items: center;
+    align-items: center;
+}
+
+#my_wildcards {
+    left: 3em;
+}
+
+#opponent_wildcards {
+    left: 21em;
+}
+
+#hand_sizes {
+    position: absolute;
+    top: 15em;
+    left: 13.5em;
+    width: 6em;
+    height: 5em;
+    z-index: 1;
+}
+
+#player1hand,
+#player2hand,
+#hand_separator {
+    position: absolute;
+    width: 3em;
+    height: 3em;
+    text-align: center;
+    line-height: 3em;
+    left: 1.5em;
+}
+
+#player1hand {
+    color: var(--dark-green);
+    left: 0em;
+}
+
+#player2hand {
+    color: var(--dark-yellow);
+    left: 3em;
+}
+
+#player1score,
+#player2score {
+    position: absolute;
+    top: 17.5em;
+    width: 3em;
+    height: 3em;
+    text-align: center;
+    line-height: 3em;
+}
+
+#player1score {
+    color: var(--dark-green);
+    left: 13.5em;
+}
+
+#player2score {
+    color: var(--dark-yellow);
+    left: 16.5em;
+}
+
+#qr_display {
+    top: 1.25em;
+}
+
+#qr_reader {
+    top: 12.5em;
+    border: var(--border-width) dashed var(--light-gray);
+    box-sizing: border-box;
+}
+
+#qr_display,
+#qr_reader {
+    position: absolute;
+    left: 31.25em;
+    width: 7.25em;
+    height: 7.25em;
+}
+
+#button {
+    position: absolute;
+    top: 9.5em;
+    left: 31.25em;
+    width: 7.25em;
+    height: 2em;
+    background: var(--light-gray);
+    line-height: calc(2em - 2 * var(--border-width));
+    text-align: center;
+    border: var(--border-width) dashed transparent;
+    box-sizing: border-box;
+    cursor: default;
+}
+
+#button.enabled {
+    background: var(--my-light);
+    cursor: pointer;
+}
+
+#button.tied {
+    background: transparent;
+    border-color: var(--light-gray);
+}
+
+#button.won {
+    background: transparent;
+    border-color: var(--light-gray);
+    color: var(--my-dark);
+}
+
+#button.lost {
+    background: transparent;
+    border-color: var(--light-gray);
+    color: var(--opponent-dark);
+}
+
+#app.stage3 #button:hover::after {
+    content: 'play again?';
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bg-color);
+}
+
+#app.stage3 #button:hover {
+    cursor: pointer;
+}

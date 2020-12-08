@@ -2,7 +2,6 @@ const path = require('path');
 const CopyPlugin = require("copy-webpack-plugin");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 
-
 module.exports = {
     entry: './src/index.tsx',
     mode: 'production',
@@ -12,7 +11,7 @@ module.exports = {
                 test: /\.tsx?$/,
                 use: 'ts-loader',
                 exclude: /node_modules/,
-            },
+            }
         ],
     },
     plugins: [

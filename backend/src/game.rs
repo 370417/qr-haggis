@@ -2,7 +2,7 @@ use crate::compression::{decode_game, encode_game};
 use card::*;
 use combination_type::*;
 use constant::*;
-use image::{DynamicImage, ImageBuffer, Rgba};
+use image::{load_from_memory_with_format, DynamicImage, ImageBuffer, ImageFormat::Png, Rgba};
 use location::Location;
 use player::Player;
 use qrcode::QrCode;
@@ -59,13 +59,6 @@ pub enum GameStage {
     GameOver,
 }
 
-// #[wasm_bindgen]
-// pub struct Image {
-//     pub width: u32,
-//     pub height: u32,
-//     pub pixels: js_sys::Uint8Array,
-// }
-
 #[wasm_bindgen]
 impl Game {
     pub fn new() -> Self {
@@ -73,7 +66,7 @@ impl Game {
     }
 
     pub fn from_qr_code(&mut self, image_data: &[u8]) {
-        match image::load_from_memory(image_data) {
+        match load_from_memory_with_format(image_data, Png) {
             Ok(image) => self.read_qr_code(image),
             Err(_) => {}
         }
@@ -82,6 +75,7 @@ impl Game {
     pub fn to_qr_code(&self, width: usize, height: usize) -> js_sys::Uint8ClampedArray {
         let image = self.write_qr_code(width, height);
 
+        // unsafe because wasm's memory might change after dynamic allocation
         unsafe { js_sys::Uint8ClampedArray::view(&image.into_raw()) }
     }
 

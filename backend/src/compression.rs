@@ -67,7 +67,6 @@ fn n_choose_k(n: usize, k: usize) -> u32 {
 
 fn compress_card_order(card_order_goal: &[usize]) -> BigUint {
     assert!(card_order_goal.len() == DECK_SIZE - HAGGIS_SIZE);
-    println!("from compress_card_order: {:?}", card_order_goal);
 
     let mut compressed = BigUint::new(vec![0]);
 
@@ -141,7 +140,6 @@ fn read_bit_from_grouping_array(
 // - next group of combinations, after a player passed
 // - ...
 pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
-    println!("In encode_game. ");
     let mut my_hand = Vec::new();
     let mut opponent_hand = Vec::new();
     let mut cards_on_table: HashMap<usize, Vec<usize>> = HashMap::new();
@@ -235,15 +233,10 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
     compressed_game.append(&mut grouping_array_bytes.to_vec());
     compressed_game.push(game.me_went_first as u8);
 
-    println!("Card order for compression: {:?}", card_order);
-    println!("Compressed card order: {:?}", compressed_card_order);
-    println!("Compressed grouping array: 0b{:b}", grouping_array);
-
     compressed_game
 }
 
 pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
-    println!("In decode_game. ");
     // Separate compressed game into sections
     let card_order_bytes = &compressed_game[0..CARD_ORDER_BYTE_LEN];
     let my_hand_size = compressed_game[CARD_ORDER_BYTE_LEN] as usize;
@@ -254,9 +247,7 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
 
     // Recover the big int from the slice and decompress it
     let compressed_card_order = BigUint::from_bytes_be(card_order_bytes);
-    println!("Compressed card order: {:?}", compressed_card_order);
     let card_order = decompress_card_order(compressed_card_order);
-    println!("Card order after decompress: {:?}", card_order);
 
     let net_hand_size = my_hand_size + opponent_hand_size;
 
@@ -267,7 +258,6 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
         fixed_grouping_array_bytes[i + num_zeroes] = *grouping_byte;
     }
     let grouping_array = u128::from_be_bytes(fixed_grouping_array_bytes);
-    println!("Decompressed Grouping array: 0b{:b}", grouping_array);
 
     //create the game struct with the informations given above
     let mut game = Game {
@@ -285,11 +275,6 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
         //default is haggis
         game.locations.push(Location::Haggis);
     }
-
-    println!(
-        "decompressing: opponent_hand_size {}, my_hand_size {}",
-        opponent_hand_size, my_hand_size
-    );
 
     //my hand
     for i in 0..my_hand_size {
@@ -323,8 +308,6 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
         }
     }
 
-    println!("decode_game: {:?}", game);
-
     game
 }
 
@@ -340,7 +323,6 @@ mod test {
         let mut card_order_goal: Vec<usize> = (0..DECK_SIZE).collect();
         card_order_goal.shuffle(&mut rng);
         card_order_goal.truncate(DECK_SIZE - HAGGIS_SIZE);
-        println!("{:?}", card_order_goal);
         let card_order_result = decompress_card_order(compress_card_order(
             &card_order_goal[0..(DECK_SIZE - HAGGIS_SIZE)],
         ));
@@ -357,27 +339,8 @@ mod test {
     #[test]
     fn test_init_game_compress_decompress() {
         let game = Game::create_state(None);
-        // let opponent_result = decode_game(&encode_game(&game));
-        // println!("{:?}", opponent_result);
         let my_result = decode_game(&encode_game(&game));
         assert_eq!(game, my_result);
-    }
-
-    fn print_game(game: &Game) {
-        println!(
-            "My hand: {:?}",
-            game.get_hand(Player::Me)
-                .iter()
-                .map(|card_id| card_id.0)
-                .collect::<Vec<_>>()
-        );
-        println!(
-            "Opponent's hand: {:?}",
-            game.get_hand(Player::Opponent)
-                .iter()
-                .map(|card_id| card_id.0)
-                .collect::<Vec<_>>()
-        );
     }
 
     #[test]
@@ -437,16 +400,10 @@ mod test {
 
         game.play_cards(vec![11, 12, 13]);
 
-        print_game(&game);
-
         game.play_cards(vec![]);
-
-        print_game(&game);
 
         game.play_cards(vec![10]);
         game.play_cards(vec![6]);
-
-        print_game(&game);
 
         let my_result = decode_game(&encode_game(&game));
         assert_eq!(game, my_result);
@@ -510,8 +467,6 @@ mod test {
         game.play_cards(vec![11, 12, 13]);
 
         assert_eq!(game, decode_game(&encode_game(&game)));
-
-        println!("Decoding and encoding worked without passing!");
 
         game.play_cards(vec![]);
 

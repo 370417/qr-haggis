@@ -8,7 +8,8 @@
     "dev": "webpack serve --config webpack.dev.js",
     "build": "webpack --config webpack.prod.js",
     "build-wasm": "wasm-pack build --target web --out-dir ../frontend/dist ../backend",
-    "minify-static-css": "postcss static/style.css > static/style.min.css"
+    "minify-static-css": "postcss static/style.css > static/style.min.css",
+    "wasm-opt": "wasm-opt dist/qr_haggis_bg.wasm --enable-mutable-globals -Os -o dist/qr_haggis_bg.wasm"
   },
   "author": "",
   "license": "ISC",

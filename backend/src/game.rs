@@ -242,16 +242,8 @@ impl Game {
     /// return (my_score, opponent_score) based on the scores so far
     pub fn calculate_score(&mut self) -> Box<[usize]> {
         let hand_sizes = self.hand_sizes();
-        let mut my_card_count = hand_sizes[0];
-        let mut opponent_card_count = hand_sizes[1];
-
-        for location in self.locations.iter() {
-            match location {
-                Location::Hand(Player::Me) => my_card_count += 1,
-                Location::Hand(Player::Opponent) => opponent_card_count += 1,
-                _ => {}
-            };
-        }
+        let my_card_count = hand_sizes[0];
+        let opponent_card_count = hand_sizes[1];
 
         if my_card_count == 0 || opponent_card_count == 0 {
             // Capture the last combination group

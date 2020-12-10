@@ -54,12 +54,13 @@ body {
 
 /* Haggis or InOpponentHand before game end */
 .card.state0,
-#app:not(.stage3) .card.state6 {
+.card.state6 {
     border-color: var(--circle-gray);
 }
 
-/* InOpponentHand when game is over */
-#app.stage3 .card.state6 {
+/* InOpponentHand when game is over and hovering over hand */
+#app.stage3 #hand_sizes:hover + #card_grid .card.state6 {
+    border-color: transparent;
     background: var(--opponent-light);
 }
 
@@ -106,10 +107,10 @@ body {
     opacity: 0;
 }
 
-#hand_sizes:hover~#card_grid .state4,
-#hand_sizes:hover~#card_grid .state5,
-#app:not(.stage0) #hand_sizes:hover~#player1score,
-#app:not(.stage0) #hand_sizes:hover~#player2score,
+#hand_sizes:hover + #card_grid .state4,
+#hand_sizes:hover + #card_grid .state5,
+#app:not(.stage0) #hand_sizes:hover ~ #player1score,
+#app:not(.stage0) #hand_sizes:hover ~ #player2score,
 #app.stage3 #player1score,
 #app.stage3 #player2score {
     opacity: 1;

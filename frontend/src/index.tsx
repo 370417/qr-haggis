@@ -441,8 +441,8 @@ import('../dist/qr_haggis').then(module => {
     class Scores extends React.Component<ScoresProps> {
         render() {
             return <>
-                <span id="player1score">{this.props.player1score}pts</span>
-                <span id="player2score">{this.props.player2score}pts</span>
+                <span id="player1score">{this.props.player1score}{this.props.player1score == 1 ? "pt" : "pts"}</span>
+                <span id="player2score">{this.props.player2score}{this.props.player2score == 1 ? "pt" : "pts"}</span>
             </>;
         }
     }

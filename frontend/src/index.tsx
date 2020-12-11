@@ -13,7 +13,7 @@ import('../dist/qr_haggis').then(module => {
 
     type AppState = {
         stage: GameStage,
-        qrObjectUrl: string | undefined,
+        qrBlob: Blob | null,
         myScore: number,
         opponentScore: number,
 
@@ -26,7 +26,7 @@ import('../dist/qr_haggis').then(module => {
             super({});
             this.state = {
                 stage: module.GameStage.BeforeGame,
-                qrObjectUrl: undefined,
+                qrBlob: null,
                 myScore: 0,
                 opponentScore: 0,
                 isSelectionValid: false,
@@ -54,7 +54,7 @@ import('../dist/qr_haggis').then(module => {
                             selectedCards: new Set(),
                             myScore: scores[0],
                             opponentScore: scores[1],
-                            qrObjectUrl: undefined,
+                            qrBlob: null,
                         });
 
                         this.renderQRCode();
@@ -66,7 +66,7 @@ import('../dist/qr_haggis').then(module => {
                     game = module.Game.new();
                     this.setState({
                         stage: module.GameStage.BeforeGame,
-                        qrObjectUrl: undefined,
+                        qrBlob: null,
                         myScore: 0,
                         opponentScore: 0,
                         isSelectionValid: false,
@@ -90,7 +90,7 @@ import('../dist/qr_haggis').then(module => {
 
             canvas.toBlob(blob => {
                 this.setState({
-                    qrObjectUrl: URL.createObjectURL(blob),
+                    qrBlob: blob,
                 });
             });
         }
@@ -160,7 +160,7 @@ import('../dist/qr_haggis').then(module => {
                         isSelectionEmpty={this.state.selectedCards.size == 0}
                         readQRHandler={this.readQRHandler}
                         buttonHandler={this.buttonHandler}
-                        qrObjectUrl={this.state.qrObjectUrl}
+                        qrBlob={this.state.qrBlob}
                         myScore={this.state.myScore}
                         opponentScore={this.state.opponentScore} />
                 </div>
@@ -258,7 +258,7 @@ import('../dist/qr_haggis').then(module => {
         stage: GameStage,
         myScore: number,
         opponentScore: number,
-        qrObjectUrl: string | undefined,
+        qrBlob: Blob | null,
         isSelectionValid: boolean,
         isSelectionEmpty: boolean,
         buttonHandler: () => void,
@@ -284,13 +284,13 @@ import('../dist/qr_haggis').then(module => {
                     return button;
                 case module.GameStage.Wait:
                     return <>
-                        {this.props.qrObjectUrl !== undefined ? <QRDisplay qrObjectUrl={this.props.qrObjectUrl} /> : ""}
+                        {this.props.qrBlob !== null ? <QRDisplay qrBlob={this.props.qrBlob} /> : ""}
                         {button}
                         <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.GameOver:
                     return <>
-                        {this.props.qrObjectUrl !== undefined ? <QRDisplay qrObjectUrl={this.props.qrObjectUrl} /> : ""}
+                        {this.props.qrBlob !== null ? <QRDisplay qrBlob={this.props.qrBlob} /> : ""}
                         {button}
                     </>;
             }
@@ -298,12 +298,28 @@ import('../dist/qr_haggis').then(module => {
     }
 
     type QRDisplayProps = {
-        qrObjectUrl: string,
+        qrBlob: Blob,
     };
 
     class QRDisplay extends React.Component<QRDisplayProps> {
+        constructor(props: QRDisplayProps) {
+            super(props);
+
+            this.copy = this.copy.bind(this);
+        }
+
+        copy() {
+            // @ts-ignore
+            navigator.clipboard.write([new ClipboardItem({
+                [this.props.qrBlob.type]: this.props.qrBlob
+            })]);
+        }
+
         render() {
-            return <img id="qr_display" src={this.props.qrObjectUrl} />;
+            return <>
+                <img id="qr_display" src={URL.createObjectURL(this.props.qrBlob)} />
+                <div id="copy_button" onClick={this.copy}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill-rule="evenodd" d="M4.75 3A1.75 1.75 0 003 4.75v9.5c0 .966.784 1.75 1.75 1.75h1.5a.75.75 0 000-1.5h-1.5a.25.25 0 01-.25-.25v-9.5a.25.25 0 01.25-.25h9.5a.25.25 0 01.25.25v1.5a.75.75 0 001.5 0v-1.5A1.75 1.75 0 0014.25 3h-9.5zm5 5A1.75 1.75 0 008 9.75v9.5c0 .966.784 1.75 1.75 1.75h9.5A1.75 1.75 0 0021 19.25v-9.5A1.75 1.75 0 0019.25 8h-9.5zM9.5 9.75a.25.25 0 01.25-.25h9.5a.25.25 0 01.25.25v9.5a.25.25 0 01-.25.25h-9.5a.25.25 0 01-.25-.25v-9.5z"></path></svg></div>
+            </>;
         }
     }
 
@@ -353,6 +369,7 @@ import('../dist/qr_haggis').then(module => {
             this.dragOver = this.dragOver.bind(this);
             this.drop = this.drop.bind(this);
             this.selectFile = this.selectFile.bind(this);
+            this.paste = this.paste.bind(this);
         }
 
         dragOver(event: React.DragEvent) {
@@ -430,16 +447,45 @@ import('../dist/qr_haggis').then(module => {
             element.value = "";
         }
 
+        paste() {
+            // clipboard-read is correct according to w3c, typescript thinks it's clipboard
+            // @ts-ignore
+            navigator.permissions.query({ name: "clipboard-read" }).then(result => {
+                // If permission to read the clipboard is granted or if the user will
+                // be prompted to allow it, we proceed.
+
+                let x: Clipboard;
+
+                if (result.state == "granted" || result.state == "prompt") {
+                    // @ts-ignore
+                    navigator.clipboard.read().then(items => {
+                        console.log(items);
+                        items[0].getType("image/png").then((blob: Blob | null) => {
+                            if (blob) {
+                                console.log(blob);
+                                blob?.arrayBuffer().then((arrayBuffer: ArrayBuffer) => {
+                                    this.props.readQRHandler(arrayBuffer);
+                                });
+                            }
+                        });
+                    });
+                }
+            });
+        }
+
         render() {
-            return <label id="qr_reader"
-                onDragOver={this.dragOver}
-                onDragEnter={this.dragOver}
-                onDrop={this.drop}>
-                <input
-                    type="file"
-                    onChange={this.selectFile}
-                    style={{ display: "none" }} />
-            </label>;
+            return <>
+                <label id="qr_reader"
+                    onDragOver={this.dragOver}
+                    onDragEnter={this.dragOver}
+                    onDrop={this.drop}>
+                    <input
+                        type="file"
+                        onChange={this.selectFile}
+                        style={{ display: "none" }} />
+                </label>
+                <div id="paste_button" onClick={this.paste}><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><path fill-rule="evenodd" d="M5.962 2.513a.75.75 0 01-.475.949l-.816.272a.25.25 0 00-.171.237V21.25c0 .138.112.25.25.25h14.5a.25.25 0 00.25-.25V3.97a.25.25 0 00-.17-.236l-.817-.272a.75.75 0 01.474-1.424l.816.273A1.75 1.75 0 0121 3.97v17.28A1.75 1.75 0 0119.25 23H4.75A1.75 1.75 0 013 21.25V3.97a1.75 1.75 0 011.197-1.66l.816-.272a.75.75 0 01.949.475z"></path><path fill-rule="evenodd" d="M7 1.75C7 .784 7.784 0 8.75 0h6.5C16.216 0 17 .784 17 1.75v1.5A1.75 1.75 0 0115.25 5h-6.5A1.75 1.75 0 017 3.25v-1.5zm1.75-.25a.25.25 0 00-.25.25v1.5c0 .138.112.25.25.25h6.5a.25.25 0 00.25-.25v-1.5a.25.25 0 00-.25-.25h-6.5z"></path></svg></div>
+            </>;
         }
     }
 

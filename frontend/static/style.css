@@ -8,6 +8,12 @@
     --light-gray: #d9d9d9;
     --circle-gray: #cccccc;
     --border-width: 0.12em;
+    --card-size: 2em;
+    /* card size + padding around it */
+    --tile-size: 3em;
+    --qr-size: 7.25em;
+    --label--offset: 0.25em;
+    --sidebar-gap: 1.25em;
     font-size: 2vw;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -27,8 +33,8 @@ body {
 
 #app {
     position: relative;
-    width: 40.5em;
-    height: 21em;
+    width: calc(10 * var(--tile-size) + var(--sidebar-gap) + var(--qr-size));
+    height: calc(7 * var(--tile-size));
 }
 
 #app.player1 {
@@ -46,8 +52,8 @@ body {
 }
 
 .card {
-    width: 2em;
-    height: 2em;
+    width: var(--card-size);
+    height: var(--card-size);
     border-radius: 50%;
     border: var(--border-width) solid transparent;
 }
@@ -118,63 +124,64 @@ body {
 
 #normal_cards {
     display: grid;
-    grid-template-columns: repeat(9, 3em);
-    grid-template-rows: repeat(4, 3em);
+    grid-template-columns: repeat(9, var(--tile-size));
+    grid-template-rows: repeat(4, var(--tile-size));
     position: absolute;
-    top: 3em;
-    left: 3em;
+    top: var(--tile-size);
+    left: var(--tile-size);
     justify-items: center;
     align-items: center;
 }
 
 #ranks {
     display: grid;
-    grid-template-columns: repeat(10, 3em);
+    grid-template-columns: repeat(10, var(--tile-size));
     position: absolute;
-    top: 0.25em;
+    top: var(--label--offset);
 }
 
 #suits {
     display: grid;
-    grid-template-rows: repeat(4, 3em);
+    grid-template-rows: repeat(4, var(--tile-size));
     position: absolute;
-    top: 3em;
-    left: 0.25em;
+    top: var(--tile-size);
+    left: var(--label--offset);
 }
 
 #ranks span,
 #suits span {
-    width: 3em;
-    height: 3em;
+    width: var(--tile-size);
+    height: var(--tile-size);
     text-align: center;
-    line-height: 3em;
+    line-height: var(--tile-size);
 }
 
 #my_wildcards,
 #opponent_wildcards {
     display: grid;
-    grid-template-columns: repeat(3, 3em);
-    grid-template-rows: repeat(2, 2.5em);
+    grid-template-columns: repeat(3, var(--tile-size));
+    grid-template-rows: repeat(2, calc(var(--tile-size) - 2 * var(--label--offset)));
     position: absolute;
-    top: 15.25em;
+    top: calc(5 * var(--tile-size) + var(--label--offset));
     justify-items: center;
     align-items: center;
 }
 
 #my_wildcards {
-    left: 3em;
+    left: var(--tile-size);
 }
 
 #opponent_wildcards {
-    left: 21em;
+    left: calc(7 * var(--tile-size));
 }
 
 #hand_sizes {
     position: absolute;
-    top: 15em;
-    left: 13.5em;
-    width: 6em;
-    height: 5em;
+    --hand-width: calc(3 * var(--tile-size));
+    top: calc(5 * var(--tile-size));
+    left: calc(4 * var(--tile-size));
+    width: var(--hand-width);
+    height: calc(2 * var(--tile-size) - 4 * var(--label--offset));
     z-index: 1;
 }
 
@@ -182,49 +189,49 @@ body {
 #player2hand,
 #hand_separator {
     position: absolute;
-    width: 3em;
-    height: 3em;
+    width: var(--tile-size);
+    height: var(--tile-size);
     text-align: center;
-    line-height: 3em;
-    left: 1.5em;
+    line-height: var(--tile-size);
+    left: calc((var(--hand-width) - var(--tile-size)) / 2);
 }
 
 #player1hand {
     color: var(--dark-green);
-    left: 0em;
+    left: calc(var(--tile-size) / 2);
 }
 
 #player2hand {
     color: var(--dark-yellow);
-    left: 3em;
+    left: calc(1.5 * var(--tile-size));
 }
 
 #player1score,
 #player2score {
     position: absolute;
-    top: 17.5em;
-    width: 3em;
-    height: 3em;
+    bottom: calc(2 * var(--label--offset));
+    width: var(--tile-size);
+    height: var(--tile-size);
     text-align: center;
-    line-height: 3em;
+    line-height: var(--tile-size);
 }
 
 #player1score {
     color: var(--dark-green);
-    left: 13.5em;
+    left: calc(4.5 * var(--tile-size));
 }
 
 #player2score {
     color: var(--dark-yellow);
-    left: 16.5em;
+    left: calc(5.5 * var(--tile-size));
 }
 
 #qr_display {
-    top: 1.25em;
+    top: calc(var(--tile-size) - var(--card-size) + var(--label--offset));
 }
 
 #qr_reader {
-    top: 12.5em;
+    bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset));
     border: var(--border-width) dashed var(--light-gray);
     box-sizing: border-box;
 }
@@ -232,19 +239,51 @@ body {
 #qr_display,
 #qr_reader {
     position: absolute;
-    left: 31.25em;
-    width: 7.25em;
-    height: 7.25em;
+    left: calc(10 * var(--tile-size) + var(--sidebar-gap));
+    width: var(--qr-size);
+    height: var(--qr-size);
+}
+
+#copy_button, #paste_button {
+    --height: calc(var(--tile-size) / 2);
+    --width: calc(var(--tile-size) / 2);
+    height: var(--height);
+    width: var(--width);
+    position: absolute;
+    left: calc(10 * var(--tile-size) + var(--sidebar-gap) + (var(--qr-size) - var(--width)) / 2);
+    display: none;
+    background: #000;
+    line-height: var(--height);
+    text-align: center;
+    cursor: pointer;
+}
+
+svg path {
+    fill: #fff;
+}
+
+#copy_button {
+    top: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + (var(--qr-size) - var(--height)) / 2);
+}
+
+#paste_button {
+    bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + (var(--qr-size) - var(--height)) / 2);
+}
+
+#qr_display:hover + #copy_button, #copy_button:hover,
+#qr_reader:hover + #paste_button, #paste_button:hover {
+    display: block;
 }
 
 #button {
+    --height: var(--card-size);
     position: absolute;
-    top: 9.5em;
-    left: 31.25em;
-    width: 7.25em;
-    height: 2em;
+    top: calc(3.5 * var(--tile-size) - var(--height) / 2);
+    left: calc(10 * var(--tile-size) + var(--sidebar-gap));
+    width: var(--qr-size);
+    height: var(--height);
     background: var(--light-gray);
-    line-height: calc(2em - 2 * var(--border-width));
+    line-height: calc(var(--height) - 2 * var(--border-width));
     text-align: center;
     border: var(--border-width) dashed transparent;
     box-sizing: border-box;

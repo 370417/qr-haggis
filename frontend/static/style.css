@@ -185,6 +185,10 @@ body {
     z-index: 1;
 }
 
+#app.stage0 #hand_sizes {
+    display: none;
+}
+
 #player1hand,
 #player2hand,
 #hand_separator {

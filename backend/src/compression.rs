@@ -65,6 +65,8 @@ fn n_choose_k(n: usize, k: usize) -> u32 {
     (numerator / denominator) as u32
 }
 
+// max return value:
+// 42 * 41 * ... * 9 - 1
 fn compress_card_order(card_order_goal: &[usize]) -> BigUint {
     assert!(card_order_goal.len() == DECK_SIZE - HAGGIS_SIZE);
 
@@ -94,7 +96,7 @@ fn compress_card_order(card_order_goal: &[usize]) -> BigUint {
     compressed
 }
 
-fn decompress_card_order(mut compressed: BigUint) -> Vec<usize> {
+fn decompress_card_order(mut compressed: BigUint) -> Option<Vec<usize>> {
     let mut card_possibilities: u32 = DECK_SIZE as u32;
 
     let mut curr_card_order: Vec<usize> = (0..DECK_SIZE).collect();
@@ -112,8 +114,12 @@ fn decompress_card_order(mut compressed: BigUint) -> Vec<usize> {
         curr_card_order.swap(i, i + distance);
     }
 
+    if compressed > BigUint::from(0_u32) {
+        return None;
+    }
+
     curr_card_order.truncate(DECK_SIZE - HAGGIS_SIZE);
-    curr_card_order
+    Some(curr_card_order)
 }
 
 // bit == 0 means the first bit (head of the combination),
@@ -236,7 +242,10 @@ pub(crate) fn encode_game(game: &Game) -> Vec<u8> {
     compressed_game
 }
 
-pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
+pub(crate) fn decode_game(compressed_game: &[u8]) -> Option<Game> {
+    if compressed_game.len() < CARD_ORDER_BYTE_LEN + 2 + GROUPING_ARRAY_BYTE_LEN + 1 {
+        return None;
+    }
     // Separate compressed game into sections
     let card_order_bytes = &compressed_game[0..CARD_ORDER_BYTE_LEN];
     let my_hand_size = compressed_game[CARD_ORDER_BYTE_LEN] as usize;
@@ -247,9 +256,13 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
 
     // Recover the big int from the slice and decompress it
     let compressed_card_order = BigUint::from_bytes_be(card_order_bytes);
-    let card_order = decompress_card_order(compressed_card_order);
+    let card_order = decompress_card_order(compressed_card_order)?;
 
     let net_hand_size = my_hand_size + opponent_hand_size;
+    // Verify the hand sizes make sense
+    if my_hand_size > 17 || opponent_hand_size > 17 || net_hand_size == 0 {
+        return None;
+    }
 
     // Store grouping_array_bytes into a fixed size array so that we can pad the left with zeros
     let mut fixed_grouping_array_bytes = [0; 16];
@@ -300,15 +313,21 @@ pub(crate) fn decode_game(compressed_game: &[u8]) -> Game {
         let is_last_card_of_combination_group =
             read_bit_from_grouping_array(&grouping_array, grouping_array_idx, 1);
         if is_last_card_of_combination {
-            game.play_cards(combination);
+            if !game.can_play_cards(&combination) {
+                return None;
+            }
+            game.play_cards(&combination);
             combination = Vec::new();
         }
         if is_last_card_of_combination_group {
-            game.play_cards(vec![]);
+            if !game.can_play_cards(&Vec::new()) {
+                return None;
+            }
+            game.play_cards(&Vec::new());
         }
     }
 
-    game
+    Some(game)
 }
 
 #[cfg(test)]
@@ -326,7 +345,7 @@ mod test {
         let card_order_result = decompress_card_order(compress_card_order(
             &card_order_goal[0..(DECK_SIZE - HAGGIS_SIZE)],
         ));
-        assert_eq!(&card_order_goal, &card_order_result);
+        assert_eq!(&card_order_goal, &card_order_result.unwrap());
     }
 
     #[test]
@@ -338,9 +357,9 @@ mod test {
 
     #[test]
     fn test_init_game_compress_decompress() {
-        let game = Game::create_state(None);
+        let game = Game::new();
         let my_result = decode_game(&encode_game(&game));
-        assert_eq!(game, my_result);
+        assert_eq!(game, my_result.unwrap());
     }
 
     #[test]
@@ -398,15 +417,15 @@ mod test {
             next_order: 0,
         };
 
-        game.play_cards(vec![11, 12, 13]);
+        game.play_cards(&vec![11, 12, 13]);
 
-        game.play_cards(vec![]);
+        game.play_cards(&vec![]);
 
-        game.play_cards(vec![10]);
-        game.play_cards(vec![6]);
+        game.play_cards(&vec![10]);
+        game.play_cards(&vec![6]);
 
         let my_result = decode_game(&encode_game(&game));
-        assert_eq!(game, my_result);
+        assert_eq!(game, my_result.unwrap());
     }
 
     #[test]
@@ -464,12 +483,12 @@ mod test {
             next_order: 0,
         };
 
-        game.play_cards(vec![11, 12, 13]);
+        game.play_cards(&vec![11, 12, 13]);
 
-        assert_eq!(game, decode_game(&encode_game(&game)));
+        assert_eq!(game, decode_game(&encode_game(&game)).unwrap());
 
-        game.play_cards(vec![]);
+        game.play_cards(&vec![]);
 
-        assert_eq!(game, decode_game(&encode_game(&game)));
+        assert_eq!(game, decode_game(&encode_game(&game)).unwrap());
     }
 }

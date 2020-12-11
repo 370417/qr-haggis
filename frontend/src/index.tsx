@@ -109,16 +109,20 @@ import('../dist/qr_haggis').then(module => {
         }
 
         readQRHandler(imageData: ArrayBuffer) {
-            game.from_qr_code(new Uint8Array(imageData));
-            let scores = game.calculate_score();
-            console.log(game.game_stage());
-            this.setState({
-                stage: game.game_stage(),
-                selectedCards: new Set(),
-                myScore: scores[0],
-                opponentScore: scores[1],
-                isSelectionValid: game.can_play_cards(Uint32Array.from([])),
-            });
+            const success = game.from_qr_code(new Uint8Array(imageData));
+            if (!success) {
+                console.warn("Error reading qr code");
+            } else {
+                let scores = game.calculate_score();
+                console.log(game.game_stage());
+                this.setState({
+                    stage: game.game_stage(),
+                    selectedCards: new Set(),
+                    myScore: scores[0],
+                    opponentScore: scores[1],
+                    isSelectionValid: game.can_play_cards(Uint32Array.from([])),
+                });
+            }
         }
 
         render() {
@@ -153,6 +157,7 @@ import('../dist/qr_haggis').then(module => {
                         player2score={player2score} />
                     <Sidebar stage={this.state.stage}
                         isSelectionValid={this.state.isSelectionValid}
+                        isSelectionEmpty={this.state.selectedCards.size == 0}
                         readQRHandler={this.readQRHandler}
                         buttonHandler={this.buttonHandler}
                         qrObjectUrl={this.state.qrObjectUrl}
@@ -255,6 +260,7 @@ import('../dist/qr_haggis').then(module => {
         opponentScore: number,
         qrObjectUrl: string | undefined,
         isSelectionValid: boolean,
+        isSelectionEmpty: boolean,
         buttonHandler: () => void,
         readQRHandler: (imageData: ArrayBuffer) => void,
     };
@@ -267,24 +273,25 @@ import('../dist/qr_haggis').then(module => {
             } else if (this.props.myScore < this.props.opponentScore) {
                 outcome = Outcome.Lost;
             }
+            const button = <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} isSelectionEmpty={this.props.isSelectionEmpty} buttonHandler={this.props.buttonHandler} outcome={outcome} />;
             switch (this.props.stage) {
                 case module.GameStage.BeforeGame:
                     return <>
-                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} outcome={outcome} />
+                        {button}
                         <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.Play:
-                    return <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} outcome={outcome} />
+                    return button;
                 case module.GameStage.Wait:
                     return <>
                         {this.props.qrObjectUrl !== undefined ? <QRDisplay qrObjectUrl={this.props.qrObjectUrl} /> : ""}
-                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} outcome={outcome} />
+                        {button}
                         <QRReader readQRHandler={this.props.readQRHandler} />
                     </>;
                 case module.GameStage.GameOver:
                     return <>
                         {this.props.qrObjectUrl !== undefined ? <QRDisplay qrObjectUrl={this.props.qrObjectUrl} /> : ""}
-                        <Button stage={this.props.stage} isSelectionValid={this.props.isSelectionValid} buttonHandler={this.props.buttonHandler} outcome={outcome} />
+                        {button}
                     </>;
             }
         }
@@ -304,6 +311,7 @@ import('../dist/qr_haggis').then(module => {
         stage: GameStage,
         outcome: Outcome,
         isSelectionValid: boolean,
+        isSelectionEmpty: boolean,
         buttonHandler: () => void,
     };
 
@@ -314,9 +322,11 @@ import('../dist/qr_haggis').then(module => {
                     return <div id="button" className="enabled" onClick={this.props.buttonHandler}>start</div>;
                 case module.GameStage.Play:
                     if (this.props.isSelectionValid) {
-                        return <div id="button" className="enabled" onClick={this.props.buttonHandler}>play</div>;
+                        const text = this.props.isSelectionEmpty ? "pass" : "play";
+                        return <div id="button" className="enabled" onClick={this.props.buttonHandler}>{text}</div>;
+                    } else {
+                        return <div id="button">play</div>;
                     }
-                    return <div id="button">play</div>;
                 case module.GameStage.Wait:
                     return <div id="button">wait</div>;
                 case module.GameStage.GameOver:

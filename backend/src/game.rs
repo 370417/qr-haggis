@@ -62,13 +62,43 @@ pub enum GameStage {
 #[wasm_bindgen]
 impl Game {
     pub fn new() -> Self {
-        Game::create_state(None)
+        let mut game = Game {
+            locations: Vec::new(),
+            current_player: Player::Me,
+            me_went_first: true,
+            last_combination_type: None,
+            next_order: 0,
+        };
+        for _ in 0..DECK_SIZE {
+            game.locations.push(Location::Haggis);
+        }
+        // Even though we only loop over the first 28 indices, we still
+        // need to shuffle all 36 normal cards so that the Haggis gets randomized.
+        let mut indices: Vec<_> = (0..NUM_NORMAL).collect();
+        indices.shuffle(&mut rand::thread_rng());
+
+        // Cleaner version of the for loops:
+        for &i in &indices[0..INIT_HAND_SIZE_WO_WILDCARD] {
+            game.locations[i] = Location::Hand(Player::Me);
+        }
+        for &i in &indices[INIT_HAND_SIZE_WO_WILDCARD..(INIT_HAND_SIZE_WO_WILDCARD * 2)] {
+            game.locations[i] = Location::Hand(Player::Opponent);
+        }
+
+        for i in NUM_NORMAL..(NUM_NORMAL + NUM_WILDCARDS_PER_PLAYER) {
+            game.locations[i] = Location::Hand(Player::Me);
+        }
+        for i in (NUM_NORMAL + NUM_WILDCARDS_PER_PLAYER)..DECK_SIZE {
+            game.locations[i] = Location::Hand(Player::Opponent);
+        }
+
+        game
     }
 
-    pub fn from_qr_code(&mut self, image_data: &[u8]) {
+    pub fn from_qr_code(&mut self, image_data: &[u8]) -> bool {
         match load_from_memory_with_format(image_data, Png) {
-            Ok(image) => self.read_qr_code(image),
-            Err(_) => {}
+            Ok(image) => self.read_qr_code(image).is_ok(),
+            Err(_) => false,
         }
     }
 
@@ -82,7 +112,7 @@ impl Game {
     // card_ids can be empty
     // Returns true on success, false on failure
     // Assumption: current_player == Player::Me
-    pub fn can_play_cards(&mut self, card_ids: Vec<usize>) -> bool {
+    pub fn can_play_cards(&mut self, card_ids: &[usize]) -> bool {
         if card_ids.is_empty() {
             // We can't pass before the first combination of a combination group is played
             return self.last_combination_type.is_some();
@@ -90,7 +120,7 @@ impl Game {
 
         let card_values = card_ids
             .into_iter()
-            .map(|id| CardId(id).to_value())
+            .map(|&id| CardId(id).to_value())
             .collect();
 
         let current_combination_type = if let Some(bomb_rank) = is_bomb(&card_values) {
@@ -122,7 +152,7 @@ impl Game {
     }
 
     // We pass if card_ids is empty
-    pub fn play_cards(&mut self, card_ids: Vec<usize>) {
+    pub fn play_cards(&mut self, card_ids: &[usize]) {
         if card_ids.is_empty() {
             self.capture_table();
         } else {
@@ -165,7 +195,7 @@ impl Game {
                 };
 
             // move the cards to table
-            for &card_id in &card_ids {
+            for &card_id in card_ids {
                 self.locations[card_id] = Location::Table {
                     order: self.next_order,
                     captured_by: None,
@@ -300,26 +330,7 @@ impl Game {
 }
 
 impl Game {
-    /// Create and initialize a new game state.
-    pub fn create_state(qr_code: Option<DynamicImage>) -> Self {
-        let mut game = Game {
-            locations: Vec::new(),
-            current_player: Player::Me,
-            me_went_first: true,
-            last_combination_type: None,
-            next_order: 0,
-        };
-        for _ in 0..DECK_SIZE {
-            game.locations.push(Location::Haggis);
-        }
-        match qr_code {
-            Some(data) => game.read_qr_code(data),
-            None => game.init_state(),
-        };
-        game
-    }
-
-    pub fn read_qr_code(&mut self, image: DynamicImage) {
+    pub fn read_qr_code(&mut self, image: DynamicImage) -> Result<(), &str> {
         // convert to gray scale
         let img_gray = image.into_luma();
 
@@ -333,14 +344,23 @@ impl Game {
             &img_gray,
         );
 
-        let code = codes
-            .next()
-            .expect("found no qr codes")
-            .expect("failed to extract qr code");
-        let decoded = code.decode().expect("failed to decode qr code");
+        let code = match codes.next() {
+            Some(Ok(code)) => code,
+            Some(_) => return Err("Cannot identify qr code"),
+            _ => return Err("No qr code in image"),
+        };
+        let decoded = match code.decode() {
+            Ok(decoded) => decoded,
+            _ => return Err("Cannot decode qr code into bytes"),
+        };
 
-        *self = decode_game(&decoded.payload);
+        *self = match decode_game(&decoded.payload) {
+            Some(game) => game,
+            None => return Err("Qr data is not a valid game"),
+        };
         self.switch_perspective();
+
+        Ok(())
     }
 
     pub fn write_qr_code(&self, width: usize, height: usize) -> ImageBuffer<Rgba<u8>, Vec<u8>> {
@@ -357,6 +377,7 @@ impl Game {
             .build()
     }
 
+    /// Setup the location of each card at the beginning of a game
     pub fn init_state(&mut self) {
         // Even though we only loop over the first 28 indices, we still
         // need to shuffle all 36 normal cards so that the Haggis gets randomized.

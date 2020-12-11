@@ -254,9 +254,9 @@ body {
     height: var(--height);
     width: var(--width);
     position: absolute;
-    left: calc(10 * var(--tile-size) + var(--sidebar-gap) + (var(--qr-size) - var(--width)) / 2);
+    left: calc(10 * var(--tile-size) + var(--sidebar-gap) + var(--qr-size) - 1.25 * var(--width));
     display: none;
-    background: #000;
+    background: #000b;
     line-height: var(--height);
     text-align: center;
     cursor: pointer;
@@ -267,11 +267,12 @@ svg path {
 }
 
 #copy_button {
-    top: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + (var(--qr-size) - var(--height)) / 2);
+    border: 1px solid #fff;
+    top: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + var(--qr-size) - 1.25 * var(--height));
 }
 
 #paste_button {
-    bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + (var(--qr-size) - var(--height)) / 2);
+    bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + 0.25 * var(--height));
 }
 
 #qr_display:hover + #copy_button, #copy_button:hover,

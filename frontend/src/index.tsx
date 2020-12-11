@@ -309,10 +309,14 @@ import('../dist/qr_haggis').then(module => {
         }
 
         copy() {
-            // @ts-ignore
-            navigator.clipboard.write([new ClipboardItem({
-                [this.props.qrBlob.type]: this.props.qrBlob
-            })]);
+            try {
+                // @ts-ignore
+                navigator.clipboard.write([new ClipboardItem({
+                    [this.props.qrBlob.type]: this.props.qrBlob
+                })]);
+            } catch (e) {
+                console.error(e);
+            }
         }
 
         render() {
@@ -448,29 +452,33 @@ import('../dist/qr_haggis').then(module => {
         }
 
         paste() {
-            // clipboard-read is correct according to w3c, typescript thinks it's clipboard
-            // @ts-ignore
-            navigator.permissions.query({ name: "clipboard-read" }).then(result => {
-                // If permission to read the clipboard is granted or if the user will
-                // be prompted to allow it, we proceed.
+            try {
+                // clipboard-read is correct according to w3c, typescript thinks it's clipboard
+                // @ts-ignore
+                navigator.permissions.query({ name: "clipboard-read" }).then(result => {
+                    // If permission to read the clipboard is granted or if the user will
+                    // be prompted to allow it, we proceed.
 
-                let x: Clipboard;
+                    let x: Clipboard;
 
-                if (result.state == "granted" || result.state == "prompt") {
-                    // @ts-ignore
-                    navigator.clipboard.read().then(items => {
-                        console.log(items);
-                        items[0].getType("image/png").then((blob: Blob | null) => {
-                            if (blob) {
-                                console.log(blob);
-                                blob?.arrayBuffer().then((arrayBuffer: ArrayBuffer) => {
-                                    this.props.readQRHandler(arrayBuffer);
-                                });
-                            }
+                    if (result.state == "granted" || result.state == "prompt") {
+                        // @ts-ignore
+                        navigator.clipboard.read().then(items => {
+                            console.log(items);
+                            items[0].getType("image/png").then((blob: Blob | null) => {
+                                if (blob) {
+                                    console.log(blob);
+                                    blob?.arrayBuffer().then((arrayBuffer: ArrayBuffer) => {
+                                        this.props.readQRHandler(arrayBuffer);
+                                    });
+                                }
+                            });
                         });
-                    });
-                }
-            });
+                    }
+                });
+            } catch (e) {
+                console.error(e);
+            }
         }
 
         render() {

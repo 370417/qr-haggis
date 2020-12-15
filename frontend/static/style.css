@@ -14,6 +14,8 @@
     --qr-size: 7.25em;
     --label--offset: 0.25em;
     --sidebar-gap: 1.25em;
+    --hand-width: calc(3 * var(--tile-size));
+    --copy-paste-size: calc(var(--tile-size) / 2);
     font-size: 2vw;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
@@ -37,20 +39,6 @@ body {
     height: calc(7 * var(--tile-size));
 }
 
-#app.player1 {
-    --my-dark: var(--dark-green);
-    --my-light: var(--light-green);
-    --opponent-dark: var(--dark-yellow);
-    --opponent-light: var(--light-yellow);
-}
-
-#app.player2 {
-    --my-dark: var(--dark-yellow);
-    --my-light: var(--light-yellow);
-    --opponent-dark: var(--dark-green);
-    --opponent-light: var(--light-green);
-}
-
 .card {
     width: var(--card-size);
     height: var(--card-size);
@@ -65,29 +53,41 @@ body {
 }
 
 /* InOpponentHand when game is over and hovering over hand */
-#app.stage3 #hand_sizes:hover + #card_grid .card.state6 {
+.player1 .stage3 #hand_sizes:hover + #card_grid .card.state6 {
     border-color: transparent;
-    background: var(--opponent-light);
+    background: var(--light-yellow);
+}
+
+.player2 .stage3 #hand_sizes:hover + #card_grid .card.state6 {
+    border-color: transparent;
+    background: var(--light-green);
 }
 
 /* InMyHand */
-.card.state1 {
-    background: var(--my-light);
+.player1 .card.state1 {
+    background: var(--light-green);
 }
 
-#app.stage1 .card.state1 {
+.player2 .card.state2 {
+    background: var(--light-yellow);
+}
+
+.stage1 .card.state1 {
     cursor: pointer;
 }
 
 /* JustPlayed by me or selected */
-#app.stage2 .card.state2,
-.card.state1.selected {
-    background: var(--my-dark);
+/* JustPlayed by opponent */
+.player1.stage2 .card.state2,
+.player1 .card.state1.selected,
+.player2.stage1 .card.state2 {
+    background: var(--dark-green);
 }
 
-/* JustPlayed by opponent */
-#app.stage1 .card.state2 {
-    background: var(--opponent-dark);
+.player2.stage2 .card.state2,
+.player2 .card.state1.selected,
+.player1.stage1 .card.state2 {
+    background: var(--dark-yellow);
 }
 
 /* ThisCombinationGroup */
@@ -96,13 +96,13 @@ body {
 }
 
 /* CapturedByMe */
-.card.state4 {
-    border-color: var(--my-dark);
+/* CapturedByOpponent */
+.player1 .card.state4, .player2 .card.state5 {
+    border-color: var(--dark-green);
 }
 
-/* CapturedByOpponent */
-.card.state5 {
-    border-color: var(--opponent-dark);
+.player2 .card.state4, .player1 .card.state5 {
+    border-color: vr(--dark-yellow);
 }
 
 /* Hide captured cards and scores unless game is over or hand is hovered over */
@@ -117,8 +117,8 @@ body {
 #hand_sizes:hover + #card_grid .state5,
 #app:not(.stage0) #hand_sizes:hover ~ #player1score,
 #app:not(.stage0) #hand_sizes:hover ~ #player2score,
-#app.stage3 #player1score,
-#app.stage3 #player2score {
+.stage3 #player1score,
+.stage3 #player2score {
     opacity: 1;
 }
 
@@ -177,7 +177,6 @@ body {
 
 #hand_sizes {
     position: absolute;
-    --hand-width: calc(3 * var(--tile-size));
     top: calc(5 * var(--tile-size));
     left: calc(4 * var(--tile-size));
     width: var(--hand-width);
@@ -185,7 +184,7 @@ body {
     z-index: 1;
 }
 
-#app.stage0 #hand_sizes {
+.stage0 #hand_sizes {
     display: none;
 }
 
@@ -249,15 +248,13 @@ body {
 }
 
 #copy_button, #paste_button {
-    --height: calc(var(--tile-size) / 2);
-    --width: calc(var(--tile-size) / 2);
-    height: var(--height);
-    width: var(--width);
+    height: var(--copy-paste-size);
+    width: var(--copy-paste-size);
     position: absolute;
-    left: calc(10 * var(--tile-size) + var(--sidebar-gap) + var(--qr-size) - 1.25 * var(--width));
+    left: calc(10 * var(--tile-size) + var(--sidebar-gap) + var(--qr-size) - 1.25 * var(--copy-paste-size));
     display: none;
     background: #000b;
-    line-height: var(--height);
+    line-height: var(--copy-paste-size);
     text-align: center;
     cursor: pointer;
 }
@@ -268,11 +265,11 @@ svg path {
 
 #copy_button {
     border: 1px solid #fff;
-    top: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + var(--qr-size) - 1.25 * var(--height));
+    top: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + var(--qr-size) - 1.25 * var(--copy-paste-size));
 }
 
 #paste_button {
-    bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + 0.25 * var(--height));
+    bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + 0.25 * var(--copy-paste-size));
 }
 
 #qr_display:hover + #copy_button, #copy_button:hover,
@@ -281,43 +278,36 @@ svg path {
 }
 
 #button {
-    --height: var(--card-size);
+    --button-height: var(--card-size);
     position: absolute;
-    top: calc(3.5 * var(--tile-size) - var(--height) / 2);
+    top: calc(3.5 * var(--tile-size) - var(--button-height) / 2);
     left: calc(10 * var(--tile-size) + var(--sidebar-gap));
     width: var(--qr-size);
-    height: var(--height);
+    height: var(--button-height);
     background: var(--light-gray);
-    line-height: calc(var(--height) - 2 * var(--border-width));
+    line-height: calc(var(--button-height) - 2 * var(--border-width));
     text-align: center;
     border: var(--border-width) dashed transparent;
     box-sizing: border-box;
     cursor: default;
 }
 
-#button.enabled {
-    background: var(--my-light);
+.player1 #button.enabled {
+    background: var(--light-green);
     cursor: pointer;
 }
 
-#button.tied {
+.player2 #button.enabled {
+    background: var(--light-yellow);
+    cursor: pointer;
+}
+
+.won, .lost, .tied {
     background: transparent;
     border-color: var(--light-gray);
 }
 
-#button.won {
-    background: transparent;
-    border-color: var(--light-gray);
-    color: var(--my-dark);
-}
-
-#button.lost {
-    background: transparent;
-    border-color: var(--light-gray);
-    color: var(--opponent-dark);
-}
-
-#app.stage3 #button:hover::after {
+.stage3 #button:hover::after {
     content: 'play again?';
     position: absolute;
     left: 0;
@@ -327,6 +317,6 @@ svg path {
     background: var(--bg-color);
 }
 
-#app.stage3 #button:hover {
+.stage3 #button:hover {
     cursor: pointer;
 }

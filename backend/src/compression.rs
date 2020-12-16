@@ -29,28 +29,34 @@ const CARD_ORDER_BYTE_LEN: usize = 20;
 // Here's how to find this number:
 //
 // Let x be the first card of a sorted hand H. The 13 other cards in the
-// hand must be chosen from the 36 - x cards larger than x, so there are
-// [(36 - x) choose 13] possible hands that start with x.
+// hand must be chosen from the 35 - x cards larger than x, so there are
+// [(35 - x) choose 13] possible hands that start with x.
 // How many hands are smaller than this hand H?
 // The hands that start with 0, 1, 2, ..., x - 1 must be smaller than H. That's
-// [36 choose 13] + [35 choose 13] + [34 choose 13] + ... + [36 - (x - 1) choose 13]
+// [35 choose 13] + [34 choose 13] + [33 choose 13] + ... + [35 - (x - 1) choose 13]
 // hands. Now let y be the second card of H. By the same logic as before, there
-// are [(36 - y) choose 12] possible hands that start with x then y.
+// are [(35 - y) choose 12] possible hands that start with x then y.
 // Of the hands that start with x, those with a second card in the range (x, y)
 // exclusive must be smaller than H. Note that the second card can't be x or
 // smaller because the first card was x. So that's another
-// [36 - (x + 1) choose 12] + [36 - (x + 2) choose 12] + ... + [(36 - (y - 1)) choose 12]
+// [35 - (x + 1) choose 12] + [35 - (x + 2) choose 12] + ... + [(35 - (y - 1)) choose 12]
 // hands. Then just follow this pattern for every remaining card in the hand.
 
-fn compress_hand(hand: &[usize]) {
+pub fn compress_hand(hand: &[usize]) -> u32 {
     let mut num_smaller_hands = 0;
+    let mut smallest_possibility = 0;
     for (i, &card) in hand.iter().enumerate() {
-        let num_larger_cards = NUM_SUITS * NUM_RANKS - card - 1;
         let num_remaining_cards = INIT_HAND_SIZE_WO_WILDCARD - i - 1;
-        for smaller_card_val in i..card {
-            num_smaller_hands += n_choose_k(num_larger_cards, num_remaining_cards);
+
+        for smaller_card in smallest_possibility..card {
+            let num_possible_cards = NUM_SUITS * NUM_RANKS - 1 - smaller_card;
+            num_smaller_hands += n_choose_k(num_possible_cards, num_remaining_cards);
         }
+
+        smallest_possibility = card + 1;
     }
+
+    num_smaller_hands
 }
 
 fn n_choose_k(n: usize, k: usize) -> u32 {

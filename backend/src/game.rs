@@ -104,9 +104,37 @@ impl Game {
 
     pub fn to_qr_code(&self, width: usize, height: usize) -> js_sys::Uint8ClampedArray {
         let image = self.write_qr_code(width, height);
+        let pixels = image.into_raw();
 
         // unsafe because wasm's memory might change after dynamic allocation
-        unsafe { js_sys::Uint8ClampedArray::view(&image.into_raw()) }
+        // unsafe { js_sys::Uint8ClampedArray::view(&image.into_raw()) }
+
+        let array = js_sys::Uint8ClampedArray::new_with_length(pixels.len() as u32);
+        for (i, pixel) in pixels.into_iter().enumerate() {
+            array.set_index(i as u32, pixel);
+        }
+        array
+    }
+
+    pub fn from_compressed(&mut self, data: &[u8]) -> bool {
+        if let Some(game) = decode_game(data) {
+            *self = game;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn to_compressed(&self) -> js_sys::Uint8Array {
+        // unsafe { js_sys::Uint8Array::view(&encode_game(self)) }
+
+        let bytes = encode_game(self);
+        let array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
+        for (i, byte) in bytes.into_iter().enumerate() {
+            array.set_index(i as u32, byte);
+        }
+
+        array
     }
 
     // card_ids can be empty

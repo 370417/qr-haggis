@@ -20,6 +20,8 @@ import('../dist/qr_haggis').then(module => {
 
         isSelectionValid: boolean,
         selectedCards: Set<number>,
+
+        websocket: WebSocket | null,
     };
 
     class App extends React.Component<{}, AppState> {
@@ -33,10 +35,51 @@ import('../dist/qr_haggis').then(module => {
                 opponentScore: 0,
                 isSelectionValid: false,
                 selectedCards: new Set(),
+                websocket: null,
             };
             this.buttonHandler = this.buttonHandler.bind(this);
             this.cardHandler = this.cardHandler.bind(this);
             this.readQRHandler = this.readQRHandler.bind(this);
+        }
+
+        // Update the game after a move has been made and close the websocket
+        // if the game is over
+        updateGame(newWebsocket?: WebSocket) {
+            let scores = game.calculate_score();
+            let stage = game.game_stage();
+
+            let websocket = newWebsocket || this.state.websocket;
+            if (stage == module.GameStage.GameOver) {
+                this.state.websocket?.close();
+                websocket = null;
+            }
+
+            this.setState({
+                stage,
+                selectedCards: new Set(),
+                myScore: scores[0],
+                opponentScore: scores[1],
+                qrBlob: null,
+                qrObjectUrl: null,
+                isSelectionValid: game.can_play_cards(Uint32Array.from([])),
+                websocket,
+            });
+        }
+
+        createWebsocket(): WebSocket {
+            const websocket = new WebSocket("wss://qr-haggis.herokuapp.com/v1");
+            websocket.addEventListener("message", event => {
+                const array = Uint8Array.from(event.data);
+                if (array) {
+                    let success = game.from_compressed(array);
+                    if (!success) {
+                        console.warn("Error reading data from server");
+                    } else {
+                        this.updateGame();
+                    }
+                }
+            });
+            return websocket;
         }
 
         buttonHandler() {
@@ -44,22 +87,15 @@ import('../dist/qr_haggis').then(module => {
                 case module.GameStage.BeforeGame:
                     this.setState({
                         stage: module.GameStage.Play,
+                        websocket: this.createWebsocket(),
                     });
                     break;
                 case module.GameStage.Play:
                     if (this.state.isSelectionValid) {
                         game.play_cards(Uint32Array.from(this.state.selectedCards));
-                        let scores = game.calculate_score();
 
-                        this.setState({
-                            stage: game.game_stage(),
-                            selectedCards: new Set(),
-                            myScore: scores[0],
-                            opponentScore: scores[1],
-                            qrBlob: null,
-                            qrObjectUrl: null,
-                        });
-
+                        this.state.websocket?.send(game.to_compressed());
+                        this.updateGame();
                         this.renderQRCode();
                     } else {
                         alert("You did not select a valid card combination.");
@@ -120,16 +156,10 @@ import('../dist/qr_haggis').then(module => {
             const success = game.from_qr_code(new Uint8Array(imageData));
             if (!success) {
                 console.warn("Error reading qr code");
+            } else if (this.state.websocket === null) {
+                this.updateGame(this.createWebsocket());
             } else {
-                let scores = game.calculate_score();
-                console.log(game.game_stage());
-                this.setState({
-                    stage: game.game_stage(),
-                    selectedCards: new Set(),
-                    myScore: scores[0],
-                    opponentScore: scores[1],
-                    isSelectionValid: game.can_play_cards(Uint32Array.from([])),
-                });
+                this.updateGame();
             }
         }
 

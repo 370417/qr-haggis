@@ -68,7 +68,7 @@ body {
     background: var(--light-green);
 }
 
-.player2 .card.state2 {
+.player2 .card.state1 {
     background: var(--light-yellow);
 }
 
@@ -278,14 +278,13 @@ svg path {
 }
 
 #button {
-    --button-height: var(--card-size);
     position: absolute;
-    top: calc(3.5 * var(--tile-size) - var(--button-height) / 2);
+    top: calc(3.5 * var(--tile-size) - var(--card-size) / 2);
     left: calc(10 * var(--tile-size) + var(--sidebar-gap));
     width: var(--qr-size);
-    height: var(--button-height);
+    height: var(--card-size);
     background: var(--light-gray);
-    line-height: calc(var(--button-height) - 2 * var(--border-width));
+    line-height: calc(var(--card-size) - 2 * var(--border-width));
     text-align: center;
     border: var(--border-width) dashed transparent;
     box-sizing: border-box;

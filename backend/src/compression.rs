@@ -62,13 +62,12 @@ pub fn compress_hand(hand: &[usize]) -> u32 {
 fn n_choose_k(n: usize, k: usize) -> u32 {
     let n = n as u64;
     let k = k as u64;
-    let mut numerator = 1;
-    let mut denominator = 1;
+    let mut binomial = 1;
     for i in 0..k {
-        numerator *= n - i;
-        denominator *= 1 + i;
+        binomial *= n + i - k + 1;
+        binomial /= i + 1;
     }
-    (numerator / denominator) as u32
+    binomial as u32
 }
 
 // max return value:
@@ -496,5 +495,21 @@ mod test {
         game.play_cards(&vec![]);
 
         assert_eq!(game, decode_game(&encode_game(&game)).unwrap());
+    }
+
+    #[test]
+    fn test_n_choose_k() {
+        assert_eq!(3796297200, n_choose_k(36, 14));
+    }
+
+    #[test]
+    fn test_compress_hand() {
+        let hand: Vec<usize> = (0..14).collect();
+        let compressed = 0;
+        assert_eq!(compress_hand(&hand), compressed);
+
+        let hand: Vec<usize> = (22..36).collect();
+        let compressed = n_choose_k(36, 14) - 1;
+        assert_eq!(compress_hand(&hand), compressed);
     }
 }

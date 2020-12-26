@@ -1,4 +1,4 @@
-use crate::compression::{decode_game, encode_game};
+use crate::compression::{compress_hand, decode_game, encode_game};
 use card::*;
 use combination_type::*;
 use constant::*;
@@ -119,6 +119,7 @@ impl Game {
     pub fn from_compressed(&mut self, data: &[u8]) -> bool {
         if let Some(game) = decode_game(data) {
             *self = game;
+            self.switch_perspective();
             true
         } else {
             false
@@ -132,6 +133,38 @@ impl Game {
         let array = js_sys::Uint8Array::new_with_length(bytes.len() as u32);
         for (i, byte) in bytes.into_iter().enumerate() {
             array.set_index(i as u32, byte);
+        }
+
+        array
+    }
+
+    /// Returns the client id: 4 bytes for my hand followed by 4 bytes for
+    /// opponent's hand. Assumes that at most one combination has been played.
+    /// Cards on the table are counted as cards in the opponent's hand because
+    /// they must have been played by the opponent.
+    pub fn get_client_id(&self) -> js_sys::Uint8Array {
+        let mut my_sorted_hand = Vec::with_capacity(INIT_HAND_SIZE_WO_WILDCARD);
+        let mut opponent_sorted_hand = Vec::with_capacity(INIT_HAND_SIZE_WO_WILDCARD);
+
+        for (card_id, location) in self.locations[0..NUM_NORMAL].iter().enumerate() {
+            match location {
+                Location::Hand(Player::Me) => my_sorted_hand.push(card_id),
+                Location::Hand(Player::Opponent) | Location::Table { .. } => {
+                    opponent_sorted_hand.push(card_id)
+                }
+                _ => {}
+            }
+        }
+
+        let my_compressed_hand = compress_hand(&my_sorted_hand).to_le_bytes();
+        let opponent_compressed_hand = compress_hand(&opponent_sorted_hand).to_le_bytes();
+
+        let array = js_sys::Uint8Array::new_with_length(8);
+        for i in 0..4 {
+            array.set_index(i, my_compressed_hand[i as usize]);
+        }
+        for i in 0..4 {
+            array.set_index(4 + i, opponent_compressed_hand[i as usize]);
         }
 
         array

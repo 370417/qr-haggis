@@ -68,8 +68,10 @@ import('../dist/qr_haggis').then(module => {
 
         createWebsocket(): WebSocket {
             const websocket = new WebSocket("wss://qr-haggis.herokuapp.com/v1");
+            websocket.binaryType = "arraybuffer";
+
             websocket.addEventListener("message", event => {
-                const array = Uint8Array.from(event.data);
+                const array = new Uint8Array(event.data);
                 if (array) {
                     let success = game.from_compressed(array);
                     if (!success) {
@@ -79,6 +81,11 @@ import('../dist/qr_haggis').then(module => {
                     }
                 }
             });
+
+            websocket.addEventListener("open", () => {
+                websocket.send(game.get_client_id());
+            });
+
             return websocket;
         }
 

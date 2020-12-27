@@ -385,7 +385,7 @@ impl Game {
         Box::new([my_score, opponent_score])
     }
 
-    pub fn am_player_1(&self) -> bool {
+    pub fn me_went_first(&self) -> bool {
         self.me_went_first
     }
 }

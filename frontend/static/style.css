@@ -1,321 +1,341 @@
 :root {
-    --bg-color: #f6f6f6;
-    --fg-color: #000000;
-    --dark-green: #84a706;
-    --light-green: #a4cc44;
-    --dark-yellow: #c2a413;
-    --light-yellow: #e1be25;
-    --light-gray: #d9d9d9;
-    --circle-gray: #cccccc;
-    --border-width: 0.12em;
-    --card-size: 2em;
-    /* card size + padding around it */
-    --tile-size: 3em;
-    --qr-size: 7.25em;
-    --label--offset: 0.25em;
-    --sidebar-gap: 1.25em;
-    --hand-width: calc(3 * var(--tile-size));
-    --copy-paste-size: calc(var(--tile-size) / 2);
-    font-size: 2vw;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --bg-color: #f6f6f6;
+  --fg-color: #000000;
+  --dark-green: #84a706;
+  --light-green: #a4cc44;
+  --dark-yellow: #c2a413;
+  --light-yellow: #e1be25;
+  --light-gray: #d9d9d9;
+  --circle-gray: #cccccc;
+  --border-width: 0.12em;
+  --card-size: 2em;
+  /* card size + padding around it */
+  --tile-size: 3em;
+  --qr-size: 7.25em;
+  --label--offset: 0.25em;
+  --sidebar-gap: 1.25em;
+  --hand-width: calc(3 * var(--tile-size));
+  --copy-paste-size: calc(var(--tile-size) / 2);
+  font-size: 2vw;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
 }
 
 body {
-    background: var(--bg-color);
-    color: var(--fg-color);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
+  background: var(--bg-color);
+  color: var(--fg-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 
 #app {
-    position: relative;
-    width: calc(10 * var(--tile-size) + var(--sidebar-gap) + var(--qr-size));
-    height: calc(7 * var(--tile-size));
+  position: relative;
+  width: calc(10 * var(--tile-size) + var(--sidebar-gap) + var(--qr-size));
+  height: calc(7 * var(--tile-size));
 }
 
 .card {
-    width: var(--card-size);
-    height: var(--card-size);
-    border-radius: 50%;
-    border: var(--border-width) solid transparent;
+  width: var(--card-size);
+  height: var(--card-size);
+  border-radius: 50%;
+  border: var(--border-width) solid transparent;
 }
 
 /* Haggis or InOpponentHand before game end */
 .card.state0,
 .card.state6 {
-    border-color: var(--circle-gray);
+  border-color: var(--circle-gray);
 }
 
 /* InOpponentHand when game is over and hovering over hand */
-.player1 .stage3 #hand_sizes:hover + #card_grid .card.state6 {
-    border-color: transparent;
-    background: var(--light-yellow);
+.firstPlayer .stage3 #hand_sizes:hover + #card_grid .card.state6 {
+  border-color: transparent;
+  background: var(--light-yellow);
 }
 
-.player2 .stage3 #hand_sizes:hover + #card_grid .card.state6 {
-    border-color: transparent;
-    background: var(--light-green);
+.secondPlayer .stage3 #hand_sizes:hover + #card_grid .card.state6 {
+  border-color: transparent;
+  background: var(--light-green);
 }
 
 /* InMyHand */
-.player1 .card.state1 {
-    background: var(--light-green);
+.firstPlayer .card.state1 {
+  background: var(--light-green);
 }
 
-.player2 .card.state1 {
-    background: var(--light-yellow);
+.secondPlayer .card.state1 {
+  background: var(--light-yellow);
 }
 
 .stage1 .card.state1 {
-    cursor: pointer;
+  cursor: pointer;
 }
 
 /* JustPlayed by me or selected */
 /* JustPlayed by opponent */
-.player1.stage2 .card.state2,
-.player1 .card.state1.selected,
-.player2.stage1 .card.state2 {
-    background: var(--dark-green);
+.firstPlayer.stage2 .card.state2,
+.firstPlayer .card.state1.selected,
+.secondPlayer.stage1 .card.state2 {
+  background: var(--dark-green);
 }
 
-.player2.stage2 .card.state2,
-.player2 .card.state1.selected,
-.player1.stage1 .card.state2 {
-    background: var(--dark-yellow);
+.secondPlayer.stage2 .card.state2,
+.secondPlayer .card.state1.selected,
+.firstPlayer.stage1 .card.state2 {
+  background: var(--dark-yellow);
 }
 
 /* ThisCombinationGroup */
 .card.state3 {
-    background: var(--light-gray);
+  background: var(--light-gray);
 }
 
 /* CapturedByMe */
 /* CapturedByOpponent */
-.player1 .card.state4, .player2 .card.state5 {
-    border-color: var(--dark-green);
+.firstPlayer .card.state4,
+.secondPlayer .card.state5 {
+  border-color: var(--dark-green);
 }
 
-.player2 .card.state4, .player1 .card.state5 {
-    border-color: vr(--dark-yellow);
+.secondPlayer .card.state4,
+.firstPlayer .card.state5 {
+  border-color: vr(--dark-yellow);
 }
 
 /* Hide captured cards and scores unless game is over or hand is hovered over */
 .state4,
 .state5,
-#player1score,
-#player2score {
-    opacity: 0;
+#firstPlayerScore,
+#secondPlayerScore {
+  opacity: 0;
 }
 
 #hand_sizes:hover + #card_grid .state4,
 #hand_sizes:hover + #card_grid .state5,
-#app:not(.stage0) #hand_sizes:hover ~ #player1score,
-#app:not(.stage0) #hand_sizes:hover ~ #player2score,
-.stage3 #player1score,
-.stage3 #player2score {
-    opacity: 1;
+#app:not(.stage0) #hand_sizes:hover ~ #firstPlayerScore,
+#app:not(.stage0) #hand_sizes:hover ~ #secondPlayerScore,
+.stage3 #firstPlayerScore,
+.stage3 #secondPlayerScore {
+  opacity: 1;
 }
 
 #normal_cards {
-    display: grid;
-    grid-template-columns: repeat(9, var(--tile-size));
-    grid-template-rows: repeat(4, var(--tile-size));
-    position: absolute;
-    top: var(--tile-size);
-    left: var(--tile-size);
-    justify-items: center;
-    align-items: center;
+  display: grid;
+  grid-template-columns: repeat(9, var(--tile-size));
+  grid-template-rows: repeat(4, var(--tile-size));
+  position: absolute;
+  top: var(--tile-size);
+  left: var(--tile-size);
+  justify-items: center;
+  align-items: center;
 }
 
 #ranks {
-    display: grid;
-    grid-template-columns: repeat(10, var(--tile-size));
-    position: absolute;
-    top: var(--label--offset);
+  display: grid;
+  grid-template-columns: repeat(10, var(--tile-size));
+  position: absolute;
+  top: var(--label--offset);
 }
 
 #suits {
-    display: grid;
-    grid-template-rows: repeat(4, var(--tile-size));
-    position: absolute;
-    top: var(--tile-size);
-    left: var(--label--offset);
+  display: grid;
+  grid-template-rows: repeat(4, var(--tile-size));
+  position: absolute;
+  top: var(--tile-size);
+  left: var(--label--offset);
 }
 
 #ranks span,
 #suits span {
-    width: var(--tile-size);
-    height: var(--tile-size);
-    text-align: center;
-    line-height: var(--tile-size);
+  width: var(--tile-size);
+  height: var(--tile-size);
+  text-align: center;
+  line-height: var(--tile-size);
 }
 
 #my_wildcards,
 #opponent_wildcards {
-    display: grid;
-    grid-template-columns: repeat(3, var(--tile-size));
-    grid-template-rows: repeat(2, calc(var(--tile-size) - 2 * var(--label--offset)));
-    position: absolute;
-    top: calc(5 * var(--tile-size) + var(--label--offset));
-    justify-items: center;
-    align-items: center;
+  display: grid;
+  grid-template-columns: repeat(3, var(--tile-size));
+  grid-template-rows: repeat(
+    2,
+    calc(var(--tile-size) - 2 * var(--label--offset))
+  );
+  position: absolute;
+  top: calc(5 * var(--tile-size) + var(--label--offset));
+  justify-items: center;
+  align-items: center;
 }
 
 #my_wildcards {
-    left: var(--tile-size);
+  left: var(--tile-size);
 }
 
 #opponent_wildcards {
-    left: calc(7 * var(--tile-size));
+  left: calc(7 * var(--tile-size));
 }
 
 #hand_sizes {
-    position: absolute;
-    top: calc(5 * var(--tile-size));
-    left: calc(4 * var(--tile-size));
-    width: var(--hand-width);
-    height: calc(2 * var(--tile-size) - 4 * var(--label--offset));
-    z-index: 1;
+  position: absolute;
+  top: calc(5 * var(--tile-size));
+  left: calc(4 * var(--tile-size));
+  width: var(--hand-width);
+  height: calc(2 * var(--tile-size) - 4 * var(--label--offset));
+  z-index: 1;
 }
 
 .stage0 #hand_sizes {
-    display: none;
+  display: none;
 }
 
-#player1hand,
-#player2hand,
+#firstPlayerHandSize,
+#secondPlayerHandSize,
 #hand_separator {
-    position: absolute;
-    width: var(--tile-size);
-    height: var(--tile-size);
-    text-align: center;
-    line-height: var(--tile-size);
-    left: calc((var(--hand-width) - var(--tile-size)) / 2);
+  position: absolute;
+  width: var(--tile-size);
+  height: var(--tile-size);
+  text-align: center;
+  line-height: var(--tile-size);
+  left: calc((var(--hand-width) - var(--tile-size)) / 2);
 }
 
-#player1hand {
-    color: var(--dark-green);
-    left: calc(var(--tile-size) / 2);
+#firstPlayerHandSize {
+  color: var(--dark-green);
+  left: calc(var(--tile-size) / 2);
 }
 
-#player2hand {
-    color: var(--dark-yellow);
-    left: calc(1.5 * var(--tile-size));
+#secondPlayerHandSize {
+  color: var(--dark-yellow);
+  left: calc(1.5 * var(--tile-size));
 }
 
-#player1score,
-#player2score {
-    position: absolute;
-    bottom: calc(2 * var(--label--offset));
-    width: var(--tile-size);
-    height: var(--tile-size);
-    text-align: center;
-    line-height: var(--tile-size);
+#firstPlayerScore,
+#secondPlayerScore {
+  position: absolute;
+  bottom: calc(2 * var(--label--offset));
+  width: var(--tile-size);
+  height: var(--tile-size);
+  text-align: center;
+  line-height: var(--tile-size);
 }
 
-#player1score {
-    color: var(--dark-green);
-    left: calc(4.5 * var(--tile-size));
+#firstPlayerScore {
+  color: var(--dark-green);
+  left: calc(4.5 * var(--tile-size));
 }
 
-#player2score {
-    color: var(--dark-yellow);
-    left: calc(5.5 * var(--tile-size));
+#secondPlayerScore {
+  color: var(--dark-yellow);
+  left: calc(5.5 * var(--tile-size));
 }
 
 #qr_display {
-    top: calc(var(--tile-size) - var(--card-size) + var(--label--offset));
+  top: calc(var(--tile-size) - var(--card-size) + var(--label--offset));
 }
 
 #qr_reader {
-    bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset));
-    border: var(--border-width) dashed var(--light-gray);
-    box-sizing: border-box;
+  bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset));
+  border: var(--border-width) dashed var(--light-gray);
+  box-sizing: border-box;
 }
 
 #qr_display,
 #qr_reader {
-    position: absolute;
-    left: calc(10 * var(--tile-size) + var(--sidebar-gap));
-    width: var(--qr-size);
-    height: var(--qr-size);
+  position: absolute;
+  left: calc(10 * var(--tile-size) + var(--sidebar-gap));
+  width: var(--qr-size);
+  height: var(--qr-size);
 }
 
-#copy_button, #paste_button {
-    height: var(--copy-paste-size);
-    width: var(--copy-paste-size);
-    position: absolute;
-    left: calc(10 * var(--tile-size) + var(--sidebar-gap) + var(--qr-size) - 1.25 * var(--copy-paste-size));
-    display: none;
-    background: #000b;
-    line-height: var(--copy-paste-size);
-    text-align: center;
-    cursor: pointer;
+#copy_button,
+#paste_button {
+  height: var(--copy-paste-size);
+  width: var(--copy-paste-size);
+  position: absolute;
+  left: calc(
+    10 * var(--tile-size) + var(--sidebar-gap) + var(--qr-size) - 1.25 *
+      var(--copy-paste-size)
+  );
+  display: none;
+  background: #000b;
+  line-height: var(--copy-paste-size);
+  text-align: center;
+  cursor: pointer;
 }
 
 svg path {
-    fill: #fff;
+  fill: #fff;
 }
 
 #copy_button {
-    border: 1px solid #fff;
-    top: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + var(--qr-size) - 1.25 * var(--copy-paste-size));
+  border: 1px solid #fff;
+  top: calc(
+    var(--tile-size) - var(--card-size) + var(--label--offset) + var(--qr-size) -
+      1.25 * var(--copy-paste-size)
+  );
 }
 
 #paste_button {
-    bottom: calc(var(--tile-size) - var(--card-size) + var(--label--offset) + 0.25 * var(--copy-paste-size));
+  bottom: calc(
+    var(--tile-size) - var(--card-size) + var(--label--offset) + 0.25 *
+      var(--copy-paste-size)
+  );
 }
 
-#qr_display:hover + #copy_button, #copy_button:hover,
-#qr_reader:hover + #paste_button, #paste_button:hover {
-    display: block;
+#qr_display:hover + #copy_button,
+#copy_button:hover,
+#qr_reader:hover + #paste_button,
+#paste_button:hover {
+  display: block;
 }
 
 #button {
-    position: absolute;
-    top: calc(3.5 * var(--tile-size) - var(--card-size) / 2);
-    left: calc(10 * var(--tile-size) + var(--sidebar-gap));
-    width: var(--qr-size);
-    height: var(--card-size);
-    background: var(--light-gray);
-    line-height: calc(var(--card-size) - 2 * var(--border-width));
-    text-align: center;
-    border: var(--border-width) dashed transparent;
-    box-sizing: border-box;
-    cursor: default;
+  position: absolute;
+  top: calc(3.5 * var(--tile-size) - var(--card-size) / 2);
+  left: calc(10 * var(--tile-size) + var(--sidebar-gap));
+  width: var(--qr-size);
+  height: var(--card-size);
+  background: var(--light-gray);
+  line-height: calc(var(--card-size) - 2 * var(--border-width));
+  text-align: center;
+  border: var(--border-width) dashed transparent;
+  box-sizing: border-box;
+  cursor: default;
 }
 
-.player1 #button.enabled {
-    background: var(--light-green);
-    cursor: pointer;
+.firstPlayer #button.enabled {
+  background: var(--light-green);
+  cursor: pointer;
 }
 
-.player2 #button.enabled {
-    background: var(--light-yellow);
-    cursor: pointer;
+.secondPlayer #button.enabled {
+  background: var(--light-yellow);
+  cursor: pointer;
 }
 
-.won, .lost, .tied {
-    background: transparent;
-    border-color: var(--light-gray);
+.won,
+.lost,
+.tied {
+  background: transparent;
+  border-color: var(--light-gray);
 }
 
 .stage3 #button:hover::after {
-    content: 'play again?';
-    position: absolute;
-    left: 0;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--bg-color);
+  content: "play again?";
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-color);
 }
 
 .stage3 #button:hover {
-    cursor: pointer;
+  cursor: pointer;
 }

@@ -3,5 +3,14 @@
     "debug.allowBreakpointsEverywhere": true,
     "[html]": {
         "editor.formatOnSave": false
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescript react]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
     }
 }
